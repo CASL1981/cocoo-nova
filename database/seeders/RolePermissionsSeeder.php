@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Actions\Permissions\SeedModulePermissions;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class RolePermissionsSeeder extends Seeder
@@ -13,6 +12,6 @@ class RolePermissionsSeeder extends Seeder
      */
     public function run(): void
     {
-        (new SeedModulePermissions())->execute('roles');
+        (new SeedModulePermissions)->execute('roles');
     }
 }

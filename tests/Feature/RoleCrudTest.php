@@ -44,3 +44,14 @@ it('impide eliminar un rol con usuarios asignados', function () {
 
     expect(Role::find($role->id))->not->toBeNull();
 });
+
+it('muestra las iniciales en las tarjetas de roles sin enviar nombres a servicios externos', function () {
+    $role = Role::factory()->create(['name' => 'Compras']);
+    $user = User::factory()->create(['name' => 'Laura', 'lastname' => 'Márquez', 'role_id' => $role->id]);
+    $user->assignRole($role);
+
+    Livewire::actingAs(actingAsAdmin())
+        ->test('pages::role-index')
+        ->assertDontSeeHtml('ui-avatars.com')
+        ->assertSeeHtml('role-avatar-initials');
+});

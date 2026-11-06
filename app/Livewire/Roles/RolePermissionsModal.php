@@ -2,20 +2,29 @@
 
 namespace App\Livewire\Roles;
 
+use App\Actions\Permissions\SeedModulePermissions;
 use App\Livewire\Concerns\ManagesModal;
 use App\Livewire\Concerns\Notifies;
 use App\Models\Role;
 use App\Support\PermissionCatalog;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Spatie\Permission\Models\Permission;
 
 class RolePermissionsModal extends Component
 {
     use ManagesModal, Notifies;
 
     public ?Role $role = null;
-    public array $matrix = [];   // ['users' => ['read' => true, 'create' => false, ...], ...]
+
+    /**
+     * Permisos marcados por módulo y acción (ej. ['users' => ['read' => true, 'create' => false]]).
+     *
+     * @var array<string, array<string, bool>>
+     */
+    public array $matrix = [];
 
     public bool $readOnly = false;
 
@@ -65,7 +74,7 @@ class RolePermissionsModal extends Component
         $this->readOnly = false;
     }
 
-    public function save(): void
+    public function save(SeedModulePermissions $seedPermissions): void
     {
         // Defensa adicional: aunque el botón esté oculto en modo lectura, el método no debe ejecutar nada
         if ($this->readOnly) {
@@ -74,23 +83,31 @@ class RolePermissionsModal extends Component
 
         Gate::authorize('managePermissions', $this->role);
 
+        // Solo se aceptan módulos y acciones del catálogo: la matriz llega del cliente.
         $selected = [];
-        foreach ($this->matrix as $module => $actions) {
-            foreach ($actions as $action => $checked) {
-                if ($checked) {
-                    $selected[] = PermissionCatalog::permissionName($module, $action);
+        foreach (array_keys(PermissionCatalog::MODULES) as $module) {
+            foreach (array_keys(PermissionCatalog::ACTIONS) as $action) {
+                if (! empty($this->matrix[$module][$action])) {
+                    $selected[PermissionCatalog::permissionName($module, $action)] = $module;
                 }
             }
         }
 
-        $this->role->syncPermissions($selected);
+        // Un módulo agregado al catálogo después de sembrar la base aún no tiene permisos:
+        // se crean aquí para no fallar con PermissionDoesNotExist.
+        $existing = Permission::whereIn('name', array_keys($selected))->where('guard_name', 'web')->pluck('name')->all();
+        foreach (array_unique(array_diff_key($selected, array_flip($existing))) as $module) {
+            $seedPermissions->execute($module);
+        }
+
+        $this->role->syncPermissions(array_keys($selected));
 
         $this->dispatch('role-permissions-saved');
         $this->toastSuccess("Permisos actualizados para el rol {$this->role->name}");
         $this->closeModal();
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.roles.role-permissions-modal', [
             'modules' => PermissionCatalog::MODULES,

@@ -2,12 +2,11 @@
 
 namespace App\Livewire\Forms;
 
-use App\Models\User;
 use App\Enums\UserStatus;
 use App\Livewire\Concerns\SanitizesPayload;
+use App\Models\User;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
-use Livewire\Attributes\Validate;
 use Livewire\Form;
 
 class UserForm extends Form
@@ -22,7 +21,10 @@ class UserForm extends Form
 
     public string $lastname = '';
 
-    public string $area = '';
+    public string $process_id = '';
+
+    // Habilita al usuario para hacer requisiciones de aseo, papelería y cafetería ('1' o '0').
+    public string $can_request_supplies = '0';
 
     public string $email = '';
 
@@ -40,6 +42,7 @@ class UserForm extends Form
 
     /**
      * Summary of rules
+     *
      * @return array<string, mixed>
      */
     protected function rules(): array
@@ -48,17 +51,20 @@ class UserForm extends Form
         $this->role_id = $this->role_id === '' ? null : $this->role_id;
 
         return [
-            'identification' => ['required', 'string','min:7', 'max:12',
-                                'regex:/^\\d{7,12}$/',
-                                Rule::unique('users', 'identification')->ignore($this->user)],
-            'name'     => ['required', 'string', 'min:3', 'max:150'],
+            'identification' => ['required', 'string', 'min:7', 'max:12',
+                'regex:/^\\d{7,12}$/',
+                Rule::unique('users', 'identification')->ignore($this->user)],
+            'name' => ['required', 'string', 'min:3', 'max:150'],
             'lastname' => ['required', 'string', 'min:3', 'max:150'],
-            'area'     => ['nullable', 'string', 'in:Administrativa,Comercial,Farmacia,Financiero'],
-            'email'    => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($this->user)],
-            'status'   => ['required', Rule::enum(UserStatus::class)],
+            // Quien solicita suministros necesita proceso (define quién aprueba) y sede (su C.U.).
+            'process_id' => ['nullable', 'required_if:can_request_supplies,1', 'integer',
+                Rule::exists('processes', 'id')->whereNull('deleted_at')],
+            'can_request_supplies' => ['required', 'boolean'],
+            'email' => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($this->user)],
+            'status' => ['required', Rule::enum(UserStatus::class)],
             'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],
-            'service_point_id'  => ['nullable', 'integer', Rule::exists('service_points', 'id')],
-            'profile_photo_path'  => ['nullable', 'string', 'max:255'],
+            'service_point_id' => ['nullable', 'required_if:can_request_supplies,1', 'integer', Rule::exists('service_points', 'id')],
+            'profile_photo_path' => ['nullable', 'string', 'max:255'],
         ];
     }
 
@@ -66,11 +72,21 @@ class UserForm extends Form
     {
         $this->user = $user;
 
-        foreach (['identification', 'name', 'lastname', 'area', 'role_id', 'email', 'service_point_id'] as $field) {
+        foreach (['identification', 'name', 'lastname', 'process_id', 'role_id', 'email', 'service_point_id'] as $field) {
             $this->{$field} = (string) ($user->{$field} ?? '');
         }
 
-        $this->status = $user->status?->value ?? 'active';
+        $this->status = $user->status->value;
+        $this->can_request_supplies = $user->can_request_supplies ? '1' : '0';
+    }
+
+    /** @return array<string, string> */
+    protected function messages(): array
+    {
+        return [
+            'process_id.required_if' => 'El proceso es obligatorio para solicitar suministros.',
+            'service_point_id.required_if' => 'La sede es obligatoria para solicitar suministros.',
+        ];
     }
 
     /** @return array<string, mixed> Solo datos validados; sin password si viene vacío */

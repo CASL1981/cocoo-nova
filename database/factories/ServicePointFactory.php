@@ -21,6 +21,7 @@ class ServicePointFactory extends Factory
             // de elegir entre una lista fija de 6 códigos reales con unique().
             'code' => (string) fake()->unique()->numberBetween(9000, 99999),
             'name' => fake()->company().' Punto de Servicio',
+            'abbreviation' => 'SEDE '.fake()->unique()->numberBetween(1000, 999999),
             'type' => ServicePointType::Pharmacy,
             'address' => fake()->address(),
             'phone' => fake()->numerify('3#########'),

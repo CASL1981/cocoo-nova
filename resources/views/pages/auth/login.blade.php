@@ -30,10 +30,11 @@
 
                                 <!-- Formulario de Laravel -->
                                 <form method="POST" action="{{ route('login') }}">
+                                    @csrf
                                     <div class="row">
                                         <div class="col-lg-12">
                                             <div class="form-group">
-                                                <label for="email" class="form-label">Email</label>
+                                                <label for="email" class="form-label">Correo electrónico</label>
                                                 <input type="email" class="form-control" name="email" id="email"
                                                     aria-describedby="email" placeholder="xyz@example.com" required autofocus>
                                             </div>

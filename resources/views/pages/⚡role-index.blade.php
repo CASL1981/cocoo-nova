@@ -115,14 +115,13 @@ new #[Layout('layouts.app')] #[Title('Roles')] class extends Component
 
                             <div class="role-card-avatars">
                                 @foreach ($role->assignedUsers as $user)
-                                    <img
-                                        src="{{ $user->profile_photo_path
-                                            ? Storage::disk('public')->url($user->profile_photo_path)
-                                            : 'https://ui-avatars.com/api/?name='.urlencode($user->name.' '.$user->lastname).'&background=random' }}"
-                                        class="role-avatar"
-                                        title="{{ $user->name }} {{ $user->lastname }}"
-                                        alt="{{ $user->name }}"
-                                    >
+                                    {{-- Sin foto se muestran las iniciales: nunca se envían nombres a servicios externos de avatares. --}}
+                                    @if ($user->profile_photo_path)
+                                        <img src="{{ Storage::disk('public')->url($user->profile_photo_path) }}"
+                                             class="role-avatar" title="{{ $user->fullName() }}" alt="{{ $user->fullName() }}">
+                                    @else
+                                        <span class="role-avatar role-avatar-initials" title="{{ $user->fullName() }}">{{ $user->initials() }}</span>
+                                    @endif
                                 @endforeach
 
                                 @if ($role->assigned_users_count > $role->assignedUsers->count())
@@ -263,10 +262,7 @@ new #[Layout('layouts.app')] #[Title('Roles')] class extends Component
                 </table>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <span>Mostrando {{ $this->roles->firstItem() ?? 0 }} a {{ $this->roles->lastItem() ?? 0 }} de {{ $this->roles->total() }} registros</span>
-                {{ $this->roles->links() }}
-            </div>
+            <x-table.pagination :paginator="$this->roles" />
         </div>
     </div>
 

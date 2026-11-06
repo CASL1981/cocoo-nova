@@ -13,13 +13,11 @@ final class SaveServicePoint
     /**
      * Crea o actualiza un ServicePoint.
      *
-     * @param array $data
-     * @param ServicePoint|null $servicePoint
-     * @return ServicePoint
+     * @param  array<string, mixed>  $data
      */
-   public function execute(array $data, ?ServicePoint $servicePoint = null): ServicePoint
+    public function execute(array $data, ?ServicePoint $servicePoint = null): ServicePoint
     {
-        $servicePoint ??= new ServicePoint();
+        $servicePoint ??= new ServicePoint;
         $servicePoint->fill($data)->save();
 
         return $servicePoint;

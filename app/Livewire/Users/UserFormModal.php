@@ -7,6 +7,7 @@ use App\Livewire\Concerns\ManagesModal;
 use App\Livewire\Concerns\Notifies;
 use App\Livewire\Forms\UserForm;
 use App\Models\User;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -52,6 +53,7 @@ class UserFormModal extends Component
         } catch (QueryException $e) {
             Log::error('users.save_failed', ['user_id' => $user?->getKey(), 'error' => $e->getMessage()]);
             $this->toastError('No se pudo guardar el usuario. Inténtalo de nuevo.');
+
             return;
         }
 
@@ -60,7 +62,7 @@ class UserFormModal extends Component
         $this->closeModal();
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.users.user-form-modal');
     }

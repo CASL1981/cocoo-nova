@@ -4,7 +4,7 @@
         <div class="modal-body">
             @if ($role)
                 <div class="table-responsive">
-                    <table class="table table-bordered align-middle">
+                    <table class="table table-bordered align-middle permission-table mb-0">
                         <thead>
                             <tr>
                                 <th class="permission-module-header">Módulo / Recurso</th>
@@ -19,7 +19,7 @@
                         <tbody>
                             @foreach ($modules as $module => $label)
                                 <tr>
-                                    <td class="fw-semibold">
+                                    <td class="fw-semibold permission-module">
                                         <i class="bi {{ $moduleIcons[$module] ?? 'bi-grid-3x3-gap-fill' }}" aria-hidden="true"></i>
                                         <span>{{ $label }}</span>
                                     </td>

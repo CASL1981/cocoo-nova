@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('products', function (Blueprint $table) {
+        Schema::create('shopping_products', function (Blueprint $table) {
             $table->id();
             $table->string('item', 50)->unique()->comment('Código/ítem del producto');
             $table->string('description', 255)->comment('Descripción del producto');
@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('generic_name')->comment('Nombre genérico');
             $table->string('generic_code', 50)->comment('Código genérico');
             $table->decimal('tax_percentage', 5, 2)->nullable()->comment('Porcentaje de impuesto');
+            $table->unsignedBigInteger('supplier_nit')->nullable()->index()->comment('NIT del proveedor principal (primera opción de compra en el ERP), sin dígito de verificación');
             $table->string('status', 20)->default('active')->comment('Estado del producto');
 
             // Mismo estándar que el resto del proyecto desde la Fase de permisos:
@@ -41,6 +42,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('products');
+        Schema::dropIfExists('shopping_products');
     }
 };

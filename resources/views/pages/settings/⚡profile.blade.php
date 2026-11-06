@@ -12,8 +12,10 @@ use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Storage;
 use Livewire\WithFileUploads;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use App\Models\ServicePoint;
+use Illuminate\Validation\Rule;
 
-new #[Layout('layouts.app')] #[Title('Profile settings')] class extends Component {
+new #[Layout('layouts.app')] #[Title('Configuración del perfil')] class extends Component {
 
     use ProfileValidationRules;
     use WithFileUploads;
@@ -23,6 +25,9 @@ new #[Layout('layouts.app')] #[Title('Profile settings')] class extends Componen
     public string $name = '';
     public string $email = '';
 
+    // Sede preferida para visualizar pendientes de farmacia; vacío = todas las sedes.
+    public string $pendingServicePointId = '';
+
     /**
      * Mount the component.
      */
@@ -30,6 +35,32 @@ new #[Layout('layouts.app')] #[Title('Profile settings')] class extends Componen
     {
         $this->name = Auth::user()->name;
         $this->email = Auth::user()->email;
+        $this->pendingServicePointId = (string) Auth::user()->pending_service_point_id;
+    }
+
+    /**
+     * Guarda la preferencia de visualización de pendientes de farmacia.
+     */
+    public function updatePendingPreference(): void
+    {
+        $validated = $this->validate([
+            'pendingServicePointId' => ['nullable', 'integer', Rule::exists(ServicePoint::class, 'id')->whereNull('deleted_at')],
+        ], attributes: ['pendingServicePointId' => 'sede de pendientes']);
+
+        Auth::user()->update([
+            'pending_service_point_id' => $validated['pendingServicePointId'] ?: null,
+        ]);
+
+        $this->dispatch('pending-preference-updated');
+    }
+
+    /** Sedes disponibles como "código - nombre". */
+    #[Computed]
+    public function servicePointOptions(): array
+    {
+        return ServicePoint::query()->orderBy('code')->get(['id', 'code', 'name'])
+            ->mapWithKeys(fn (ServicePoint $point) => [$point->id => "{$point->code} - {$point->name}"])
+            ->all();
     }
 
     /**
@@ -119,10 +150,8 @@ new #[Layout('layouts.app')] #[Title('Profile settings')] class extends Componen
     <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Actualiza tu foto, nombre y dirección de correo electrónico')">
 
         {{-- Formulario de actualización de la foto del perfil --}}
-        <div class="mb-4">
-            <label class="form-label">Foto de perfil</label>
-
-            <div class="d-flex align-items-center gap-4">
+        <x-forms.section title="Foto de perfil" icon="bi-camera" class="mb-4">
+            <div class="col-12 d-flex flex-wrap align-items-center gap-4">
 
                 @if ($photo)
                     <img src="{{ $photo->temporaryUrl() }}"
@@ -139,71 +168,39 @@ new #[Layout('layouts.app')] #[Title('Profile settings')] class extends Componen
                     </div>
                 @endif
 
-                <div>
-                    <input type="file"
-                        wire:model="photo"
-                        class="form-control"
-                        accept=".jpg,.jpeg,.png,.webp">
-
-                    @error('photo')
-                        <div class="invalid-feedback d-block">
-                            {{ $message }}
-                        </div>
-                    @enderror
+                <div class="flex-grow-1" style="max-width: 28rem;">
+                    <x-forms.field id="photo" name="photo" hint="Formatos JPG, PNG o WEBP.">
+                        <input id="photo" type="file"
+                            wire:model="photo"
+                            @class(['form-control', 'is-invalid' => $errors->has('photo')])
+                            accept=".jpg,.jpeg,.png,.webp" aria-label="Foto de perfil">
+                    </x-forms.field>
 
                     <button type="button"
                             wire:click="updateProfilePhoto"
-                            wire:loading.attr="disabled"
-                            class="btn btn-primary mt-2">
-
-                        <span wire:loading.remove wire:target="updateProfilePhoto">
-                            Actualizar foto
-                        </span>
-
-                        <span wire:loading wire:target="updateProfilePhoto">
-                            Guardando...
-                        </span>
+                            wire:loading.attr="disabled" wire:target="updateProfilePhoto,photo"
+                            class="btn btn-primary app-modal-submit mt-3">
+                        <i class="bi bi-upload" wire:loading.remove wire:target="updateProfilePhoto" aria-hidden="true"></i>
+                        <span class="spinner-border spinner-border-sm" wire:loading wire:target="updateProfilePhoto" aria-hidden="true"></span>
+                        Actualizar foto
                     </button>
                 </div>
 
             </div>
-        </div>
+        </x-forms.section>
         {{-- End Formulario de actualización de la foto del perfil --}}
 
-        <form wire:submit="updateProfileInformation" class="w-100 d-flex flex-column gap-4 my-4">
+        <form wire:submit="updateProfileInformation" class="w-100 my-4">
+          <x-forms.section title="Datos de la cuenta" icon="bi-person">
 
             {{-- Nombre --}}
-            <div class="form-group">
-                <label for="name" class="form-label">
-                    {{ __('Name') }}
-                </label>
-
-                <input id="name" type="text" wire:model="name" class="form-control" required autofocus
-                    autocomplete="name" />
-
-                @error('name')
-                    <div class="invalid-feedback d-block">
-                        {{ $message }}
-                    </div>
-                @enderror
+            <div class="col-md-6">
+                <x-forms.input name="name" :label="__('Name')" required autofocus autocomplete="name" />
             </div>
 
-
             {{-- Correo electrónico --}}
-            <div class="form-group">
-
-                <label for="email" class="form-label">
-                    {{ __('Email') }}
-                </label>
-
-                <input id="email" type="email" wire:model="email" class="form-control" required
-                    autocomplete="email" />
-
-                @error('email')
-                    <div class="invalid-feedback d-block">
-                        {{ $message }}
-                    </div>
-                @enderror
+            <div class="col-md-6">
+                <x-forms.input name="email" type="email" :label="__('Email')" required autocomplete="email" />
 
 
                 {{-- Correo no verificado --}}
@@ -234,15 +231,39 @@ new #[Layout('layouts.app')] #[Title('Profile settings')] class extends Componen
             </div>
 
 
-            {{-- Botón guardar --}}
-            <div class="d-flex align-items-center gap-3">
+          </x-forms.section>
 
-                <button type="submit" class="btn btn-primary" data-test="update-profile-button">
+            {{-- Botón guardar --}}
+            <div class="form-actions mt-3">
+                <button type="submit" class="btn btn-primary app-modal-submit" data-test="update-profile-button"
+                        wire:loading.attr="disabled" wire:target="updateProfileInformation">
+                    <i class="bi bi-check2" wire:loading.remove wire:target="updateProfileInformation" aria-hidden="true"></i>
+                    <span class="spinner-border spinner-border-sm" wire:loading wire:target="updateProfileInformation" aria-hidden="true"></span>
                     {{ __('Save') }}
                 </button>
-
             </div>
 
+        </form>
+
+        {{-- Preferencia de visualización de pendientes de farmacia --}}
+        <form wire:submit="updatePendingPreference" class="w-100 my-4">
+            <x-forms.section title="Preferencias de farmacia" icon="bi-sliders">
+                <div class="col-md-6">
+                    <x-forms.select name="pendingServicePointId" id="pending-service-point" label="Sede para visualizar pendientes"
+                                    :options="$this->servicePointOptions" placeholder="Todas las sedes"
+                                    hint="Si eliges una sede, el listado de pendientes solo mostrará los de ese destino." />
+                </div>
+            </x-forms.section>
+
+            <div class="form-actions mt-3">
+                <button type="submit" class="btn btn-primary app-modal-submit" wire:loading.attr="disabled" wire:target="updatePendingPreference">
+                    <i class="bi bi-check2" wire:loading.remove wire:target="updatePendingPreference" aria-hidden="true"></i>
+                    <span class="spinner-border spinner-border-sm" wire:loading wire:target="updatePendingPreference" aria-hidden="true"></span>
+                    Guardar preferencia
+                </button>
+                <span x-data="{ saved: false }" x-on:pending-preference-updated.window="saved = true; setTimeout(() => saved = false, 2000)"
+                      x-show="saved" x-cloak class="text-success small">Preferencia guardada</span>
+            </div>
         </form>
 
     </x-pages::settings.layout>

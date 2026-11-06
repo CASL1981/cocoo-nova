@@ -23,16 +23,30 @@ it('valida y crea una centro de costo', function () {
         ->test(ServicePointFormModal::class)
         ->call('openCreate');
 
-    $component->call('save')->assertHasErrors(['form.code', 'form.name']);
+    $component->call('save')->assertHasErrors(['form.code', 'form.name', 'form.abbreviation']);
 
     $component->set('form.code', '9999')
         ->set('form.name', 'FARMACIA DE PRUEBA')
+        ->set('form.abbreviation', 'PRUEBA')
         ->set('form.type', 'pharmacy')
         ->call('save')
         ->assertHasNoErrors()
         ->assertSet('show', false);
 
-    expect(ServicePoint::where('code', '9999')->exists())->toBeTrue();
+    expect(ServicePoint::where('code', '9999')->value('abbreviation'))->toBe('PRUEBA');
+});
+
+it('impide repetir la abreviatura de otra sede', function () {
+    ServicePoint::factory()->create(['abbreviation' => 'VALENCIA']);
+
+    Livewire::actingAs(actingAsAdmin())
+        ->test(ServicePointFormModal::class)
+        ->call('openCreate')
+        ->set('form.code', '9998')
+        ->set('form.name', 'OTRA SEDE')
+        ->set('form.abbreviation', 'VALENCIA')
+        ->call('save')
+        ->assertHasErrors(['form.abbreviation']);
 });
 
 it('impide crear dos centros de costos con el mismo código', function () {

@@ -1,9 +1,13 @@
 <?php
+// Modules/Shopping/resources/views/pages/product-index.blade.php
 
 use App\Livewire\Concerns\HasAuthScopedSession;
+use App\Livewire\Concerns\DuplicatesRows;
 use App\Livewire\Concerns\HasBulkRowActions;
-use App\Livewire\Concerns\HasRowSelection;
+use App\Livewire\Concerns\HasColumnVisibility;
+use App\Contracts\RowImporter;
 use App\Livewire\Concerns\HasSortableColumns;
+use App\Livewire\Concerns\ImportsRows;
 use App\Livewire\Concerns\Notifies;
 use App\Exports\GenericExport;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -17,16 +21,15 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Maatwebsite\Excel\Facades\Excel;
 use Modules\Shopping\App\Enums\ProductStatus;
+use Modules\Shopping\App\Imports\ProductImporter;
 use Modules\Shopping\App\Models\Product;
 
 new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
 {
-    use WithPagination, HasAuthScopedSession, HasSortableColumns, HasRowSelection, HasBulkRowActions, Notifies;
+    use WithPagination, HasAuthScopedSession, HasSortableColumns, HasBulkRowActions, DuplicatesRows, HasColumnVisibility, ImportsRows, Notifies;
 
-    protected string $computedRowsProperty = 'products';
     private const PER_PAGE = [10, 25, 50, 100];
 
-    /** Columnas filtrables por columna — un input por cada atributo de Product. */
     #[Session(key: 'products.index.filterItem-{authId}')] public string $filterItem = '';
     #[Session(key: 'products.index.filterDescription-{authId}')] public string $filterDescription = '';
     #[Session(key: 'products.index.filterBrand-{authId}')] public string $filterBrand = '';
@@ -39,15 +42,22 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
     #[Session(key: 'products.index.filterGenericName-{authId}')] public string $filterGenericName = '';
     #[Session(key: 'products.index.filterGenericCode-{authId}')] public string $filterGenericCode = '';
     #[Session(key: 'products.index.filterTaxPercentage-{authId}')] public string $filterTaxPercentage = '';
+    #[Session(key: 'products.index.filterSupplierNit-{authId}')] public string $filterSupplierNit = '';
     #[Session(key: 'products.index.filterStatus-{authId}')] public string $filterStatus = '';
-
     #[Session(key: 'products.index.perPage-{authId}')] public int $perPage = 10;
+    #[Session(key: 'products.index.hiddenColumns-{authId}')] public array $hiddenColumns = [];
     #[Session(key: 'products.index.sortBy-{authId}')] public string $sortBy = 'item';
     #[Session(key: 'products.index.sortDirection-{authId}')] public string $sortDirection = 'asc';
 
     protected function rowModelClass(): string
     {
         return Product::class;
+    }
+
+    /** Devuelve el nombre de la propiedad que contiene los registros a mostrar en la tabla. */
+    protected function computedRowsProperty(): string
+    {
+        return 'products';
     }
 
     public function mount(): void
@@ -59,9 +69,6 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
     {
         if ($property === 'perPage' || str_starts_with($property, 'filter')) {
             $this->resetPage();
-            // Cambiar el filtro invalida la página actual: limpiar la
-            // selección evita "editar/eliminar" un registro que ya no
-            // está visible en la nueva vista filtrada.
             $this->clearSelection();
         }
     }
@@ -72,7 +79,7 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
             'filterItem', 'filterDescription', 'filterBrand', 'filterAtc', 'filterInvima',
             'filterMeasureUnit', 'filterPresentation', 'filterConcentration',
             'filterPharmaceuticalForm', 'filterGenericName', 'filterGenericCode',
-            'filterTaxPercentage', 'filterStatus',
+            'filterTaxPercentage', 'filterSupplierNit', 'filterStatus',
         ]);
         $this->resetPage();
         $this->clearSelection();
@@ -85,8 +92,6 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
 
     private function baseQuery()
     {
-        // tax_percentage se filtra como texto (like), no como rango numérico:
-        // es una búsqueda simple, no una necesidad de negocio de "entre X e Y".
         return Product::query()
             ->withTrashed()
             ->when($this->filterItem, fn ($q, $v) => $q->where('item', 'like', "%{$v}%"))
@@ -101,6 +106,7 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
             ->when($this->filterGenericName, fn ($q, $v) => $q->where('generic_name', 'like', "%{$v}%"))
             ->when($this->filterGenericCode, fn ($q, $v) => $q->where('generic_code', 'like', "%{$v}%"))
             ->when($this->filterTaxPercentage, fn ($q, $v) => $q->where('tax_percentage', 'like', "%{$v}%"))
+            ->when($this->filterSupplierNit, fn ($q, $v) => $q->where('supplier_nit', 'like', "%{$v}%"))
             ->when($this->filterStatus, fn ($q, $v) => $q->where('status', $v));
     }
 
@@ -118,17 +124,28 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
         unset($this->products);
     }
 
+    protected function importer(): RowImporter
+    {
+        return new ProductImporter;
+    }
+
+    protected function afterImport(): void
+    {
+        $this->clearSelection();
+        unset($this->products);
+    }
+
     public function export(string $format)
     {
         Gate::authorize('viewAny', Product::class);
 
         $export = new GenericExport(
             query: $this->applySort($this->baseQuery()),
-            headings: ['Ítem', 'Descripción', 'Marca', 'ATC', 'INVIMA', 'Unidad', 'Presentación', 'Concentración', 'Forma farmacéutica', 'Genérico', 'Código genérico', '% Impuesto', 'Estado', 'Creado'],
+            headings: array_column($this->columns(), 'label'),
             mapRow: fn (Product $p) => [
                 $p->item, $p->description, $p->brand, $p->atc, $p->invima, $p->measure_unit,
                 $p->presentation, $p->concentration, $p->pharmaceutical_form,
-                $p->generic_name, $p->generic_code, $p->tax_percentage,
+                $p->generic_name, $p->generic_code, $p->tax_percentage, $p->supplier_nit,
                 $p->status->label(), $p->created_at->format('Y-m-d'),
             ],
         );
@@ -140,18 +157,19 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
     protected function columns(): array
     {
         return [
-            'item' => ['label' => 'Ítem', 'filter' => 'filterItem'],
-            'description' => ['label' => 'Descripción', 'filter' => 'filterDescription'],
-            'brand' => ['label' => 'Marca', 'filter' => 'filterBrand'],
-            'atc' => ['label' => 'ATC', 'filter' => 'filterAtc'],
-            'invima' => ['label' => 'INVIMA', 'filter' => 'filterInvima'],
-            'measure_unit' => ['label' => 'Unidad', 'filter' => 'filterMeasureUnit'],
-            'presentation' => ['label' => 'Presentación', 'filter' => 'filterPresentation'],
-            'concentration' => ['label' => 'Concentración', 'filter' => 'filterConcentration'],
-            'pharmaceutical_form' => ['label' => 'Forma farm.', 'filter' => 'filterPharmaceuticalForm'],
-            'generic_name' => ['label' => 'Genérico', 'filter' => 'filterGenericName'],
-            'generic_code' => ['label' => 'Cód. genérico', 'filter' => 'filterGenericCode'],
+            'item' => ['label' => 'Ítem', 'width' => 'sm', 'filter' => 'filterItem'],
+            'description' => ['label' => 'Descripción', 'width' => 'xl', 'filter' => 'filterDescription'],
+            'brand' => ['label' => 'Marca', 'width' => 'md', 'filter' => 'filterBrand'],
+            'atc' => ['label' => 'ATC', 'width' => 'sm', 'filter' => 'filterAtc'],
+            'invima' => ['label' => 'INVIMA', 'width' => 'md', 'filter' => 'filterInvima'],
+            'measure_unit' => ['label' => 'Unidad', 'width' => 'sm', 'filter' => 'filterMeasureUnit'],
+            'presentation' => ['label' => 'Presentación', 'width' => 'md', 'filter' => 'filterPresentation'],
+            'concentration' => ['label' => 'Concentración', 'width' => 'md', 'filter' => 'filterConcentration'],
+            'pharmaceutical_form' => ['label' => 'Forma farm.', 'width' => 'md', 'filter' => 'filterPharmaceuticalForm'],
+            'generic_name' => ['label' => 'Genérico', 'width' => 'lg', 'filter' => 'filterGenericName'],
+            'generic_code' => ['label' => 'Cód. genérico', 'width' => 'sm', 'filter' => 'filterGenericCode'],
             'tax_percentage' => ['label' => '% Imp.', 'filter' => 'filterTaxPercentage'],
+            'supplier_nit' => ['label' => 'NIT proveedor', 'filter' => 'filterSupplierNit'],
             'status' => ['label' => 'Estado', 'filter' => 'filterStatus', 'type' => 'select', 'options' => ProductStatus::options()],
             'created_at' => ['label' => 'Creado', 'filter' => null],
         ];
@@ -160,84 +178,38 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
 ?>
 
 <div x-data>
-    @php
-        $pageIds = $this->products->pluck('id')->all();
-        $allPageSelected = count($pageIds) > 0 && empty(array_diff($pageIds, $selected));
-    @endphp
+    @php $pageIds = $this->products->pluck('id')->all(); @endphp
 
     <div class="card">
         <div class="card-header"><h4 class="card-title mb-0">Productos</h4></div>
 
         <div class="card-body">
-            <x-data-table :paginator="$this->products">
-                <x-slot:toolbar-left>
-                    <label class="d-inline-flex align-items-center gap-2">Mostrar
-                        <select wire:model.live="perPage" class="form-select form-select-sm w-auto">
-                            @foreach ([10, 25, 50, 100] as $size)<option value="{{ $size }}">{{ $size }}</option>@endforeach
-                        </select>
-                        registros
-                    </label>
-                </x-slot:toolbar-left>
-
+            <x-data-table :paginator="$this->products" :per-page-options="[10, 25, 50, 100]"
+                          :columns="$this->columns()" :hidden-columns="$this->activeHiddenColumns()">
                 <x-slot:toolbar-right>
-                    <button wire:click="resetFilters" type="button" class="btn btn-sm btn-outline-secondary">Limpiar filtros</button>
-
-                    @can('products-update')
-                        <button type="button" wire:click="$dispatch('open-product-edit', { productId: {{ $selected[0] ?? 'null' }} })"
-                                @disabled(! $this->singleActiveSelected()) class="btn btn-sm btn-outline-primary">Editar</button>
-                    @endcan
-                    @can('products-delete')
-                        <button type="button" x-on:click="confirmAction({ title: 'Eliminar productos', text: '¿Eliminar {{ count($selected) }} producto(s)?' }).then(() => $wire.deleteSelected()).catch(() => {})"
-                                @disabled(count($selected) === 0) class="btn btn-sm btn-danger">Eliminar</button>
-                    @endcan
-                    @can('products-toggle')
-                        <button type="button" wire:click="toggleSelected" @disabled(count($selected) === 0)
-                                class="btn btn-sm btn-outline-warning"><i class="bi bi-toggle2-on"></i></button>
-                    @endcan
-                    @can('products-reverse')
-                        <button type="button" wire:click="restoreSelected" @disabled(count($selected) === 0)
-                                class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></button>
-                    @endcan
-                    @can('products-read')
-                        <button type="button" wire:click="$dispatch('open-userstamps-audit', { modelClass: 'Modules\\Shopping\\App\\Models\\Product', modelId: {{ $selected[0] ?? 'null' }} })"
-                                @disabled(! $this->singleActiveSelected()) class="btn btn-sm btn-outline-info"><i class="bi bi-clock-history"></i></button>
-                    @endcan
-                    @can('products-create')
-                        <button type="button" wire:click="$dispatch('open-product-create')" class="btn btn-primary btn-sm">Agregar</button>
-                    @endcan
-                    <button type="button" wire:click="export('xlsx')" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-excel"></i></button>
-                    <button type="button" wire:click="export('csv')" class="btn btn-sm btn-outline-secondary"><i class="bi bi-filetype-csv"></i></button>
+                    <x-table.actions module="products" :model-class="Product::class" :selected="$selected"
+                                     :single-active="$this->singleActiveSelected()" :selected-count="$this->selectedCount()"
+                                     create-event="open-product-create" edit-event="open-product-edit" edit-param="productId"
+                                     duplicable importable :import-errors="$importErrors" import-key-label="Ítem" />
                 </x-slot:toolbar-right>
 
+                <x-slot:before-table>
+                    <x-table.selection-banner :page-ids="$pageIds" :selected="$selected" :all-matching="$selectAllMatching"
+                                              :matching-count="$this->matchingSelectionCount($pageIds)" />
+                </x-slot:before-table>
+
                 <x-slot:head>
-                    <th style="width: 2rem;">
-                        <input type="checkbox" class="form-check-input" @checked($allPageSelected)
-                               wire:click="toggleSelectAll({{ json_encode($pageIds) }})">
-                    </th>
-                    @foreach ($this->columns() as $col => $meta)
-                        <th role="button" wire:click="sort('{{ $col }}')" class="text-nowrap">
-                            {{ $meta['label'] }} @if ($sortBy === $col) {{ $sortDirection === 'asc' ? '▲' : '▼' }} @endif
-                        </th>
-                    @endforeach
+                    <x-table.head :columns="$this->columns()" :sort-by="$sortBy" :sort-direction="$sortDirection"
+                                  :page-ids="$pageIds" :selected="$selected" />
                 </x-slot:head>
 
                 <x-slot:filters>
-                    <th></th>
-                    @foreach ($this->columns() as $col => $meta)
-                        <th>
-                            @if (($meta['filter'] ?? null) === null)
-                            @elseif (($meta['type'] ?? 'text') === 'select')
-                                <x-forms.select wire:model.live="{{ $meta['filter'] }}" :options="$meta['options']" placeholder="Todos" />
-                            @else
-                                <input type="text" wire:model.live.debounce.300ms="{{ $meta['filter'] }}" class="form-control form-control-sm">
-                            @endif
-                        </th>
-                    @endforeach
+                    <x-table.filters :columns="$this->columns()" />
                 </x-slot:filters>
 
                 @forelse ($this->products as $product)
                     <tr wire:key="product-{{ $product->id }}" class="{{ $this->rowStatusClass($product) }}">
-                        <td><input type="checkbox" class="form-check-input" wire:model.live="selected" value="{{ $product->id }}"></td>
+                        <x-table.row-checkbox :id="$product->id" :selected="$selected" />
                         <td>{{ $product->item }} @if ($product->trashed())<span class="badge bg-danger ms-1">Eliminado</span>@endif</td>
                         <td>{{ $product->description }}</td>
                         <td>{{ $product->brand ?? '-' }}</td>
@@ -250,11 +222,12 @@ new #[Layout('layouts.app')] #[Title('Productos')] class extends Component
                         <td>{{ $product->generic_name ?? '-' }}</td>
                         <td>{{ $product->generic_code ?? '-' }}</td>
                         <td>{{ $product->tax_percentage ?? '-' }}</td>
+                        <td>{{ $product->supplier_nit ?? '-' }}</td>
                         <td><span class="badge {{ $product->status->badgeClass() }}">{{ $product->status->label() }}</span></td>
                         <td>{{ $product->created_at->format('Y/m/d') }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="15" class="text-center text-muted py-4">Sin resultados</td></tr>
+                    <tr><td colspan="16" class="text-center text-muted py-4">Sin resultados</td></tr>
                 @endforelse
             </x-data-table>
         </div>

@@ -1,32 +1,28 @@
 <div>
-    <x-modal wire-model="show" :title="$form->servicePoint ? 'Editar sede/servicio' : 'Agregar sede/servicio'" size="lg">
+    <x-modal wire-model="show" :title="$form->servicePoint ? 'Editar sede/servicio' : 'Agregar sede/servicio'"
+             subtitle="Sedes y servicios de la organización" icon="bi-building" size="lg">
         <div class="modal-body">
-            <div class="row">
-                <div class="col-md-4 mb-3"><x-forms.input name="form.code" label="Código" /></div>
-                <div class="col-md-8 mb-3"><x-forms.input name="form.name" label="Nombre" /></div>
-
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Tipo</label>
-                    <x-forms.select wire:model="form.type" :options="\App\Enums\ServicePointType::options()" />
-                    @error('form.type') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+            <x-forms.section title="Identificación" icon="bi-card-heading">
+                <div class="col-md-3"><x-forms.input name="form.code" label="Código" required /></div>
+                <div class="col-md-6"><x-forms.input name="form.name" label="Nombre" required /></div>
+                <div class="col-md-3"><x-forms.input name="form.abbreviation" label="Abreviatura" maxlength="20" required /></div>
+                <div class="col-md-6">
+                    <x-forms.select name="form.type" label="Tipo" required :options="\App\Enums\ServicePointType::options()" />
                 </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Estado</label>
-                    <x-forms.select wire:model="form.status" :options="\App\Enums\ServicePointStatus::options()" />
-                    @error('form.status') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                <div class="col-md-6">
+                    <x-forms.select name="form.status" label="Estado" required :options="\App\Enums\ServicePointStatus::options()" />
                 </div>
+            </x-forms.section>
 
-                <div class="col-md-12 mb-3"><x-forms.input name="form.address" label="Dirección" /></div>
-                <div class="col-md-6 mb-3"><x-forms.input name="form.phone" label="Teléfono" /></div>
-                <div class="col-md-3 mb-3"><x-forms.input name="form.minimum" label="Mínimo" type="number" /></div>
-                <div class="col-md-3 mb-3"><x-forms.input name="form.maximum" label="Máximo" type="number" /></div>
-            </div>
+            <x-forms.section title="Contacto y capacidad" icon="bi-geo-alt">
+                <div class="col-12"><x-forms.input name="form.address" label="Dirección" /></div>
+                <div class="col-md-6"><x-forms.input name="form.phone" label="Teléfono" /></div>
+                <div class="col-md-3"><x-forms.input name="form.minimum" label="Mínimo" type="number" /></div>
+                <div class="col-md-3"><x-forms.input name="form.maximum" label="Máximo" type="number" /></div>
+            </x-forms.section>
         </div>
         <x-slot:footer>
-            <button type="button" class="btn btn-light" x-on:click="open = false">Cancelar</button>
-            <button type="button" wire:click="save" class="btn btn-primary">
-                Guardar <span wire:loading class="spinner-border spinner-border-sm ms-1"></span>
-            </button>
+            <x-forms.modal-actions />
         </x-slot:footer>
     </x-modal>
 </div>

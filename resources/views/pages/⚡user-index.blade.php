@@ -1,315 +1,210 @@
 <?php
 
-use App\Models\User;
-use App\Models\Role;
 use App\Enums\UserStatus;
+use App\Livewire\Concerns\ExportsRows;
+use App\Livewire\Concerns\HasAuthScopedSession;
+use App\Livewire\Concerns\HasBulkRowActions;
+use App\Livewire\Concerns\HasColumnFilters;
+use App\Livewire\Concerns\HasColumnVisibility;
+use App\Livewire\Concerns\HasSortableColumns;
+use App\Livewire\Concerns\Notifies;
+use App\Models\Process;
+use App\Models\Role;
+use App\Models\ServicePoint;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
-use Livewire\Attributes\Title;
-use Livewire\Attributes\Session;
-use Livewire\Attributes\On;
-use Livewire\Component;
 use Livewire\Attributes\Computed;
-use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
-use App\Livewire\Concerns\Notifies;
-use App\Livewire\Concerns\HasAuthScopedSession;
-use App\Livewire\Concerns\HasSortableColumns;
-use App\Exports\GenericExport;
-use Maatwebsite\Excel\Facades\Excel;
+use Livewire\Attributes\On;
+use Livewire\Attributes\Session;
+use Livewire\Attributes\Title;
+use Livewire\Component;
+use Livewire\WithPagination;
 
+/**
+ * Listado de usuarios con la interfaz estándar: filtros por columna, selección,
+ * acciones masivas (eliminar, restaurar, habilitar solicitudes de suministros),
+ * auditoría y exportación.
+ */
 new #[Layout('layouts.app')] #[Title('Lista de usuarios')] class extends Component
 {
-    use WithPagination;
-    use Notifies;
-    use HasAuthScopedSession;
+    use WithPagination, HasAuthScopedSession, HasSortableColumns, HasBulkRowActions,
+        HasColumnFilters, HasColumnVisibility, ExportsRows, Notifies;
 
-    private const SORTABLE = ['id', 'identification', 'name', 'lastname', 'area', 'email', 'status', 'role_id', 'destination', 'created_at'];
-    private const PER_PAGE = [10, 25, 50, 100];
+    #[Session(key: 'users.index.filterIdentification-{authId}')] public string $filterIdentification = '';
+    #[Session(key: 'users.index.filterName-{authId}')] public string $filterName = '';
+    #[Session(key: 'users.index.filterLastname-{authId}')] public string $filterLastname = '';
+    #[Session(key: 'users.index.filterEmail-{authId}')] public string $filterEmail = '';
+    #[Session(key: 'users.index.filterProcessId-{authId}')] public string $filterProcessId = '';
+    #[Session(key: 'users.index.filterRoleId-{authId}')] public string $filterRoleId = '';
+    #[Session(key: 'users.index.filterServicePointId-{authId}')] public string $filterServicePointId = '';
+    #[Session(key: 'users.index.filterCanRequestSupplies-{authId}')] public string $filterCanRequestSupplies = '';
+    #[Session(key: 'users.index.filterStatus-{authId}')] public string $filterStatus = '';
+    #[Session(key: 'users.index.perPage-{authId}')] public int $perPage = 10;
+    #[Session(key: 'users.index.hiddenColumns-{authId}')] public array $hiddenColumns = [];
+    #[Session(key: 'users.index.sortBy-{authId}')] public string $sortBy = 'name';
+    #[Session(key: 'users.index.sortDirection-{authId}')] public string $sortDirection = 'asc';
 
-    #[Session(key: 'users.index.sortBy-{authId}')]
-    public string $sortBy = 'id';
-
-    #[Session(key: 'users.index.sortDirection-{authId}')]
-    public string $sortDirection = 'asc';
-
-    #[Session(key: 'users.index.perPage-{authId}')]
-    public int $perPage = 10;
-
-    #[Session(key: 'users.index.filterIdentification-{authId}')]
-    public string $filterIdentification = '';
-
-    #[Session(key: 'users.index.filterName-{authId}')]
-    public string $filterName = '';
-
-    #[Session(key: 'users.index.filterLastname-{authId}')]
-    public string $filterLastname = '';
-
-    #[Session(key: 'users.index.filterArea-{authId}')]
-    public string $filterArea = '';
-
-    #[Session(key: 'users.index.filterEmail-{authId}')]
-    public string $filterEmail = '';
-
-    #[Session(key: 'users.index.filterRoleId-{authId}')]
-    public string $filterRoleId = '';
-
-    #[Session(key: 'users.index.filterStatus-{authId}')]
-    public string $filterStatus = '';
-
-    #[Session(key: 'users.index.filterServicePointId-{authId}')]
-    public string $filterServicePointId = '';
-
-    public int $authId = 0;
-
-    public function boot(): void
-    {
-        $this->authId = (int) auth()->id();
-    }
+    protected function rowModelClass(): string { return User::class; }
+    protected function computedRowsProperty(): string { return 'users'; }
 
     public function mount(): void
     {
         Gate::authorize('viewAny', User::class);
     }
 
-    #[On('user-saved')]
-    public function refreshUsers(): void
+    /** Consulta base del listado y la exportación, incluidos los eliminados. */
+    protected function baseQuery(): Builder
     {
-        unset($this->users); // limpia el cache del computed para reflejar el cambio
-    }
-
-    protected function sortableColumns(): array
-    {
-        return ['id', 'identification', 'name', 'lastname', 'area', 'email', 'status', 'role_id', 'destination', 'created_at'];
-    }
-
-    // Hook genérico: cualquier propiedad que cambie y empiece por "filter", o el tamaño de página, resetea la paginación
-    public function updated(string $property): void
-    {
-        if ($property === 'perPage' || str_starts_with($property, 'filter')) {
-            $this->resetPage();
-        }
-    }
-
-    public function resetFilters(): void
-    {
-        $this->reset([
-            'filterIdentification', 'filterName', 'filterLastname', 'filterArea',
-            'filterEmail', 'filterRoleId', 'filterStatus', 'filterServicePointId',
-        ]);
-        $this->resetPage();
-    }
-
-    public function sort(string $column): void
-    {
-        if (! in_array($column, self::SORTABLE, true)) {
-            return;
-        }
-
-        $this->sortDirection = ($this->sortBy === $column && $this->sortDirection === 'asc') ? 'desc' : 'asc';
-        $this->sortBy = $column;
-        $this->resetPage();
-    }
-
-    #[Computed]
-    public function roleOptions()
-    {
-        return Role::query()->orderBy('name')->pluck('name', 'id');
+        return $this->applyColumnFilters(
+            User::query()->withTrashed()->with(['role:id,name', 'servicePoint:id,name', 'process:id,name'])
+        );
     }
 
     #[Computed]
     public function users(): LengthAwarePaginator
     {
-        $column = in_array($this->sortBy, self::SORTABLE, true) ? $this->sortBy : 'id';
-        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
-        $perPage = in_array($this->perPage, self::PER_PAGE, true) ? $this->perPage : 10;
-
-        return User::query()
-            ->with('role') // evita N+1 al mostrar $user->role->name en la tabla
-            ->with('servicePoint')
-            ->when($this->filterIdentification, fn ($q, $v) => $q->where('identification', 'like', "%{$v}%"))
-            ->when($this->filterName, fn ($q, $v) => $q->where('name', 'like', "%{$v}%"))
-            ->when($this->filterLastname, fn ($q, $v) => $q->where('lastname', 'like', "%{$v}%"))
-            ->when($this->filterArea, fn ($q, $v) => $q->where('area', 'like', "%{$v}%"))
-            ->when($this->filterEmail, fn ($q, $v) => $q->where('email', 'like', "%{$v}%"))
-            ->when($this->filterRoleId, fn ($q, $v) => $q->where('role_id', $v))
-            ->when($this->filterStatus, fn ($q, $v) => $q->where('status', $v))
-            ->when($this->filterServicePointId, fn ($q, $v) => $q->where('service_point_id', $v))
-            ->orderBy($column, $direction)
-            ->paginate($perPage);
+        return $this->applySort($this->baseQuery())->paginate($this->resolvedPerPage());
     }
 
-    public function delete(int $id): void
+    #[On('user-saved')]
+    public function refreshUsers(): void
     {
-        $user = User::findOrFail($id);
-        Gate::authorize('delete', $user);
-
-        $user->delete();
-        // session()->flash('success', 'Usuario eliminado correctamente');
-        $this->toastSuccess('Usuario eliminado correctamente');
+        unset($this->users);
     }
 
     /**
-     * Exporta el listado de usuarios respetando los filtros y el orden activos
-     * en pantalla, igual que la exportación de ServicePoint. $format: 'xlsx' | 'csv'.
+     * Habilita o deshabilita las requisiciones de suministros de los usuarios seleccionados.
+     * Para habilitar, el usuario debe tener proceso (define quién aprueba) y sede (su C.U.).
      */
-    public function export(string $format)
+    public function setSupplyRequests(bool $enabled): void
     {
-        Gate::authorize('viewAny', User::class);
+        $count = $skipped = 0;
 
-        $column = in_array($this->sortBy, self::SORTABLE, true) ? $this->sortBy : 'id';
-        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
+        foreach (User::whereKey($this->selectedIds())->get() as $user) {
+            if (Gate::denies('update', $user) || ($enabled && ($user->process_id === null || $user->service_point_id === null))) {
+                $skipped++;
 
-        $query = User::query()
-            ->with(['role', 'servicePoint'])
-            ->when($this->filterIdentification, fn ($q, $v) => $q->where('identification', 'like', "%{$v}%"))
-            ->when($this->filterName, fn ($q, $v) => $q->where('name', 'like', "%{$v}%"))
-            ->when($this->filterLastname, fn ($q, $v) => $q->where('lastname', 'like', "%{$v}%"))
-            ->when($this->filterArea, fn ($q, $v) => $q->where('area', 'like', "%{$v}%"))
-            ->when($this->filterEmail, fn ($q, $v) => $q->where('email', 'like', "%{$v}%"))
-            ->when($this->filterRoleId, fn ($q, $v) => $q->where('role_id', $v))
-            ->when($this->filterStatus, fn ($q, $v) => $q->where('status', $v))
-            ->orderBy($column, $direction);
+                continue;
+            }
 
-        $export = new GenericExport(
-            query: $query,
-            headings: ['Identificación', 'Nombre', 'Apellido', 'Área', 'Correo', 'Rol', 'Sede/Servicio', 'Estado', 'Creado'],
-            mapRow: fn (User $u) => [
-                $u->identification,
-                $u->name,
-                $u->lastname,
-                $u->area,
-                $u->email,
-                $u->role?->name,
-                $u->servicePoint?->name,
-                $u->status->label(),
-                $u->created_at->format('Y-m-d'),
-            ],
-        );
+            $user->update(['can_request_supplies' => $enabled]);
+            $count++;
+        }
 
-        return Excel::download($export, 'usuarios-'.now()->format('Y-m-d_His').'.'.$format);
+        $this->finishBulkAction($count, $enabled ? 'habilitado(s) para solicitar suministros' : 'deshabilitado(s) para solicitar suministros',
+            $skipped, 'no tienen proceso o sede asignados, o no tienes permiso.');
+    }
+
+    protected function exportFileName(): string { return 'usuarios'; }
+
+    protected function exportHeadings(): array
+    {
+        return [...array_column($this->columns(), 'label'), 'Eliminado'];
+    }
+
+    /** @param User $row */
+    protected function exportRow(Model $row): array
+    {
+        return [
+            $row->identification, $row->name, $row->lastname, $row->email, $row->process?->name, $row->role?->name,
+            $row->servicePoint?->name, $row->can_request_supplies ? 'Sí' : 'No', $row->status?->label(),
+            $row->created_at->format('Y-m-d'), $row->trashed() ? 'Sí' : 'No',
+        ];
+    }
+
+    /** Fuente única de verdad: encabezado, filtro, orden y exportación de cada columna. */
+    protected function columns(): array
+    {
+        return [
+            'identification' => ['label' => 'Identificación', 'filter' => 'filterIdentification', 'hideable' => false],
+            'name' => ['label' => 'Nombre', 'width' => 'md', 'filter' => 'filterName'],
+            'lastname' => ['label' => 'Apellido', 'width' => 'md', 'filter' => 'filterLastname'],
+            'email' => ['label' => 'Correo', 'width' => 'lg', 'filter' => 'filterEmail'],
+            'process_id' => ['label' => 'Proceso', 'width' => 'md', 'filter' => 'filterProcessId', 'type' => 'select',
+                             'options' => Process::query()->orderBy('name')->pluck('name', 'id')->all()],
+            'role_id' => ['label' => 'Rol', 'width' => 'sm', 'filter' => 'filterRoleId', 'type' => 'select',
+                          'options' => Role::query()->orderBy('name')->pluck('name', 'id')->all()],
+            'service_point_id' => ['label' => 'Sede', 'width' => 'md', 'filter' => 'filterServicePointId', 'type' => 'select',
+                                   'options' => ServicePoint::query()->orderBy('name')->pluck('name', 'id')->all()],
+            'can_request_supplies' => ['label' => 'Solicita suministros', 'filter' => 'filterCanRequestSupplies', 'type' => 'select',
+                                       'options' => ['1' => 'Sí', '0' => 'No']],
+            'status' => ['label' => 'Estado', 'filter' => 'filterStatus', 'type' => 'select', 'options' => UserStatus::options()],
+            'created_at' => ['label' => 'Creado', 'filter' => null],
+        ];
     }
 };
 ?>
 
-<div>
+<div x-data>
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="card-title mb-0">Lista de usuarios</h4>
-            @can('create', User::class)
-                <button type="button" wire:click="$dispatch('open-user-create')" class="btn btn-primary btn-sm">
-                    Agregar usuario
-                </button>
-            @endcan
-        </div>
+        <div class="card-header"><h4 class="card-title mb-0">Lista de usuarios</h4></div>
 
         <div class="card-body">
-            <div class="row mb-3 align-items-center">
-                <div class="col-md-6">
-                    <label class="d-inline-flex align-items-center gap-2">Mostrar
-                        <select wire:model.live="perPage" class="form-select form-select-sm w-auto">
-                            @foreach ([10, 25, 50, 100] as $size)
-                                <option value="{{ $size }}">{{ $size }}</option>
-                            @endforeach
-                        </select>
-                        registros
-                    </label>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <button type="button" wire:click="export('xlsx')" class="btn btn-sm btn-outline-success">
-                        <i class="bi bi-file-earmark-excel"></i> Excel
-                    </button>
-                    <button type="button" wire:click="export('csv')" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-filetype-csv"></i> CSV
-                    </button>
-                    <button wire:click="resetFilters" type="button" class="btn btn-sm btn-outline-secondary">
-                        Limpiar filtros
-                    </button>
-                </div>
-            </div>
+            <x-data-table :paginator="$this->users" :per-page-options="$this->perPageOptions()"
+                          :columns="$this->columns()" :hidden-columns="$this->activeHiddenColumns()">
+                <x-slot:toolbar-right>
+                    <x-table.actions module="users" :model-class="User::class" :selected="$selected"
+                                     :single-active="$this->singleActiveSelected()" :selected-count="$this->selectedCount()"
+                                     create-event="open-user-create" edit-event="open-user-edit" edit-param="userId" :toggle="false">
+                        @can('users-update')
+                            <x-tooltip text="Habilitar solicitud de suministros">
+                                <button type="button" wire:click="setSupplyRequests(true)" wire:loading.attr="disabled" wire:target="setSupplyRequests"
+                                        @disabled(count($selected) === 0) class="btn btn-sm btn-outline-success btn-table-icon"
+                                        aria-label="Habilitar solicitud de suministros"><i class="bi bi-cart-check"></i></button>
+                            </x-tooltip>
+                            <x-tooltip text="Deshabilitar solicitud de suministros">
+                                <button type="button" wire:click="setSupplyRequests(false)" wire:loading.attr="disabled" wire:target="setSupplyRequests"
+                                        @disabled(count($selected) === 0) class="btn btn-sm btn-outline-secondary btn-table-icon"
+                                        aria-label="Deshabilitar solicitud de suministros"><i class="bi bi-cart-x"></i></button>
+                            </x-tooltip>
+                        @endcan
+                    </x-table.actions>
+                </x-slot:toolbar-right>
 
-            <div class="table-responsive table-scroll-10 border rounded" wire:loading.class="opacity-50" x-data>
-                <table class="table table-striped align-middle">
-                    <thead>
-                        <tr>
-                            @foreach (['id' => 'ID', 'identification' => 'Identificación', 'name' => 'Nombre', 'lastname' => 'Apellido', 'area' => 'Área',
-                                       'email' => 'Correo', 'role_id' => 'Rol', 'status' => 'Estado', 'destination' => 'Centro Costo', 'created_at' => 'Fecha de alta'] as $col => $label)
-                                <th role="button" wire:click="sort('{{ $col }}')">
-                                    {{ $label }}
-                                    @if ($sortBy === $col) {{ $sortDirection === 'asc' ? '▲' : '▼' }} @endif
-                                </th>
-                            @endforeach
-                            <th class="text-center">Acciones</th>
-                        </tr>
-                        <tr>
-                            <th></th>
-                            <th><input type="text" wire:model.live.debounce.300ms="filterIdentification" class="form-control form-control-sm"></th>
-                            <th><input type="text" wire:model.live.debounce.300ms="filterName" class="form-control form-control-sm"></th>
-                            <th><input type="text" wire:model.live.debounce.300ms="filterLastname" class="form-control form-control-sm"></th>
-                            <th><input type="text" wire:model.live.debounce.300ms="filterArea" class="form-control form-control-sm"></th>
-                            <th><input type="text" wire:model.live.debounce.300ms="filterEmail" class="form-control form-control-sm"></th>
-                            <th>
-                                <x-forms.select wire:model.live="filterRoleId" :options="$this->roleOptions" placeholder="Todos" />
-                            </th>
-                            <th>
-                                <x-forms.select wire:model.live="filterStatus" :options="UserStatus::options()" placeholder="Todos" />
-                            </th>
-                            <th><input type="text" wire:model.live.debounce.300ms="filterServicePointId" class="form-control form-control-sm"></th>
-                            <th></th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($this->users as $user)
-                            <tr wire:key="user-{{ $user->id }}">
-                                <td>{{ $user->id }}</td>
-                                <td>{{ $user->identification }}</td>
-                                <td>{{ $user->name }}</td>
-                                <td>{{ $user->lastname }}</td>
-                                <td>{{ $user->area ?? '-' }}</td>
-                                <td>{{ $user->email }}</td>
-                                <td>{{ $user->role?->name ?? '-' }}</td>
-                                <td>
-                                    @if ($user->status)
-                                        <span class="badge {{ $user->status->badgeClass() }}">{{ $user->status->label() }}</span>
-                                    @endif
-                                </td>
-                                <td>{{ $user->servicePoint?->name ?? '-' }}</td>
-                                <td>{{ $user->created_at->format('Y/m/d') }}</td>
-                                <td class="text-center">
-                                    @can('update', $user)
-                                        <button type="button" wire:click="$dispatch('open-user-edit', { userId: {{ $user->id }} })"
-                                                class="btn btn-sm btn-outline-primary">Editar</button>
-                                    @endcan
-                                    @can('delete', $user)
-                                        <button type="button"
-                                                x-on:click="confirmAction({
-                                                    title: 'Eliminar usuario',
-                                                    text: '¿Eliminar a {{ addslashes($user->name.' '.$user->lastname) }}? Esta acción no se puede deshacer.'
-                                                }).then(() => $wire.delete({{ $user->id }})).catch(() => {})"
-                                                class="btn btn-sm btn-danger">
-                                            Eliminar
-                                        </button>
-                                    @endcan
-                                    <button type="button"
-                                            wire:click="$dispatch('open-userstamps-audit', { modelClass: 'App\\Models\\User', modelId: {{ $user->id }} })"
-                                            class="btn btn-sm btn-outline-info" title="Auditoría">
-                                        <i class="bi bi-clock-history"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="11" class="text-center text-muted py-4">Sin resultados</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                <x-slot:before-table>
+                    <x-table.selection-banner :page-ids="$this->users->pluck('id')->all()" :selected="$selected" :all-matching="$selectAllMatching"
+                                              :matching-count="$this->matchingSelectionCount($this->users->pluck('id')->all())" />
+                </x-slot:before-table>
 
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <span>Mostrando {{ $this->users->firstItem() ?? 0 }} a {{ $this->users->lastItem() ?? 0 }} de {{ $this->users->total() }} registros</span>
-                {{ $this->users->links() }}
-            </div>
+                <x-slot:head>
+                    <x-table.head :columns="$this->columns()" :sort-by="$sortBy" :sort-direction="$sortDirection"
+                                  :page-ids="$this->users->pluck('id')->all()" :selected="$selected" />
+                </x-slot:head>
+
+                <x-slot:filters>
+                    <x-table.filters :columns="$this->columns()" />
+                </x-slot:filters>
+
+                @forelse ($this->users as $user)
+                    <tr wire:key="user-{{ $user->id }}" class="{{ $this->rowStatusClass($user) }}">
+                        <x-table.row-checkbox :id="$user->id" :selected="$selected" />
+                        <td>{{ $user->identification }} @if ($user->trashed())<span class="badge bg-danger ms-1">Elim</span>@endif</td>
+                        <td>{{ $user->name }}</td>
+                        <td>{{ $user->lastname }}</td>
+                        <td>{{ $user->email }}</td>
+                        <td>{{ $user->process?->name ?? '-' }}</td>
+                        <td>{{ $user->role?->name ?? '-' }}</td>
+                        <td>{{ $user->servicePoint?->name ?? '-' }}</td>
+                        <td>
+                            <span class="badge {{ $user->can_request_supplies ? 'bg-success' : 'bg-secondary' }}">{{ $user->can_request_supplies ? 'Sí' : 'No' }}</span>
+                        </td>
+                        <td>
+                            @if ($user->status)
+                                <span class="badge {{ $user->status->badgeClass() }}">{{ $user->status->label() }}</span>
+                            @endif
+                        </td>
+                        <td>{{ $user->created_at->format('Y/m/d') }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="11" class="text-center text-muted py-4">Sin resultados</td></tr>
+                @endforelse
+            </x-data-table>
         </div>
     </div>
+
     <livewire:users.user-form-modal />
 </div>

@@ -2,7 +2,6 @@
 
 namespace App\Actions;
 
-use App\Models\Role;
 use App\Models\User;
 use App\Notifications\Users\TemporaryPasswordAssigned;
 use App\Notifications\Users\UserCreatedConfirmation;
@@ -23,10 +22,11 @@ use Illuminate\Support\Str;
  */
 final class SaveUser
 {
+    /** @param array<string, mixed> $data */
     public function execute(array $data, ?User $user = null, ?UploadedFile $photo = null): User
     {
         $isCreating = $user === null;
-        $user ??= new User();
+        $user ??= new User;
         $previousPath = $user->profile_photo_path;
 
         if ($photo) {

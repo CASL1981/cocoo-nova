@@ -120,20 +120,27 @@
                                                 </a>
                                             </li>
                                         @endcan
-                                        <li class="nav-item"><a class="nav-link "
+                                        @can('commercial-providers-read')
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{{ route('commercial-providers.index') }}" wire:navigate>
+                                                    <span class="item-name">Proveedores</span>
+                                                </a>
+                                            </li>
+                                        @endcan
+                                        {{-- <li class="nav-item"><a class="nav-link "
                                                 href="./special-pages/calendar.html">Calendar</a></li>
                                         <li class="nav-item"><a class="nav-link "
                                                 href="./special-pages/kanban.html">Kanban</a></li>
                                         <li class="nav-item"><a class="nav-link "
                                                 href="./special-pages/pricing.html">Pricing</a></li>
                                         <li class="nav-item"><a class="nav-link "
-                                                href="./special-pages/timeline.html">Timeline</a></li>
+                                                href="./special-pages/timeline.html">Timeline</a></li> --}}
                                     </ul>
                                 </li>
                                 <li class="nav-item">
                                     <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#authSkins"
                                         role="button" aria-expanded="false" aria-controls="authSkins">
-                                        Auth skins
+                                        Administración
                                         <i class="right-icon">
                                             <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
                                                 xmlns="http://www.w3.org/2000/svg">
@@ -164,7 +171,7 @@
                                 <li class="nav-item">
                                     <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#userApps"
                                         role="button" aria-expanded="false" aria-controls="userApps">
-                                        Configuración Usuarios
+                                        Usuarios
                                         <i class="right-icon">
                                             <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
                                                 xmlns="http://www.w3.org/2000/svg">
@@ -190,7 +197,7 @@
                                 <li class="nav-item">
                                     <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#utilities"
                                         role="button" aria-expanded="false" aria-controls="utilities">
-                                        Utilities
+                                        Farmacia
                                         <i class="right-icon">
                                             <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
                                                 xmlns="http://www.w3.org/2000/svg">
@@ -202,14 +209,158 @@
                                     </a>
                                     <ul aria-expanded="false" class="iq-header-sub-menu left list-unstyled collapse"
                                         id="utilities">
-                                        <li class="nav-item"><a class="nav-link "
-                                                href="./errors/maintenance.html">Maintenance</a></li>
+                                        @can('viewAny', \Modules\Pharmacy\App\Models\StockOut::class)
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{{ route('stock-outs.index') }}" wire:navigate>
+                                                    <span class="item-name">Agotados</span>
+                                                </a>
+                                            </li>
+                                        @endcan
+                                        @can('viewAny', \Modules\Pharmacy\App\Models\Pending::class)
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{{ route('pendings.index') }}" wire:navigate>
+                                                    <span class="item-name">Pendientes</span>
+                                                </a>
+                                            </li>
+                                        @endcan
+                                        {{-- Productos nuevos (tercer nivel, fuera de Gestión): solicitudes (new-products-read) y gestión (Oficina Principal). --}}
+                                        @can('viewAny', \Modules\Pharmacy\App\Models\NewProduct::class)
+                                            <li class="nav-item">
+                                                <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#pharmacyNewProducts"
+                                                    role="button" aria-expanded="false" aria-controls="pharmacyNewProducts">
+                                                    Productos nuevos
+                                                    <i class="right-icon">
+                                                        <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
+                                                            xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M8.5 5L15.5 12L8.5 19" stroke="currentColor"
+                                                                stroke-width="1.5" stroke-linecap="round"
+                                                                stroke-linejoin="round"></path>
+                                                        </svg>
+                                                    </i>
+                                                </a>
+                                                <ul aria-expanded="false" class="iq-header-sub-menu left list-unstyled collapse"
+                                                    id="pharmacyNewProducts">
+                                                    <li class="nav-item">
+                                                        <a class="nav-link" href="{{ route('new-products.index') }}" wire:navigate>
+                                                            <span class="item-name">Solicitudes</span>
+                                                        </a>
+                                                    </li>
+                                                    @can('manage', \Modules\Pharmacy\App\Models\NewProduct::class)
+                                                        <li class="nav-item">
+                                                            <a class="nav-link" href="{{ route('new-products.management') }}" wire:navigate>
+                                                                <span class="item-name">Gestión</span>
+                                                            </a>
+                                                        </li>
+                                                    @endcan
+                                                </ul>
+                                            </li>
+                                        @endcan
+                                        {{-- Gestión (tercer nivel): inventario y asignación (inventory-balances-read); consulta (pendings-read). --}}
+                                        @if (Gate::allows('viewAny', \Modules\Pharmacy\App\Models\InventoryBalance::class) || Gate::allows('viewAny', \Modules\Pharmacy\App\Models\PendingItem::class))
+                                            <li class="nav-item">
+                                                <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#pharmacyManagement"
+                                                    role="button" aria-expanded="false" aria-controls="pharmacyManagement">
+                                                    Gestión
+                                                    <i class="right-icon">
+                                                        <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
+                                                            xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M8.5 5L15.5 12L8.5 19" stroke="currentColor"
+                                                                stroke-width="1.5" stroke-linecap="round"
+                                                                stroke-linejoin="round"></path>
+                                                        </svg>
+                                                    </i>
+                                                </a>
+                                                <ul aria-expanded="false" class="iq-header-sub-menu left list-unstyled collapse"
+                                                    id="pharmacyManagement">
+                                                    @can('viewAny', \Modules\Pharmacy\App\Models\InventoryBalance::class)
+                                                        <li class="nav-item">
+                                                            <a class="nav-link" href="{{ route('inventory-balances.index') }}" wire:navigate>
+                                                                <span class="item-name">Inventario disponible</span>
+                                                            </a>
+                                                        </li>
+                                                        <li class="nav-item">
+                                                            <a class="nav-link" href="{{ route('inventory-balances.assignment') }}" wire:navigate>
+                                                                <span class="item-name">Asignación de stock</span>
+                                                            </a>
+                                                        </li>
+                                                        <li class="nav-item">
+                                                            <a class="nav-link" href="{{ route('inventory-balances.transfer-documents') }}" wire:navigate>
+                                                                <span class="item-name">Asignación de TB</span>
+                                                            </a>
+                                                        </li>
+                                                    @endcan
+                                                    @can('viewAny', \Modules\Pharmacy\App\Models\PendingItem::class)
+                                                        <li class="nav-item">
+                                                            <a class="nav-link" href="{{ route('pendings.items') }}" wire:navigate>
+                                                                <span class="item-name">Consulta de ítems</span>
+                                                            </a>
+                                                        </li>
+                                                    @endcan
+                                                </ul>
+                                            </li>
+                                        @endif
+                                        {{-- Consolidado: segundo nivel de Farmacia, debajo de Gestión (inventory-balances-read). --}}
+                                        @can('viewAny', \Modules\Pharmacy\App\Models\InventoryBalance::class)
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{{ route('inventory-balances.consolidation') }}" wire:navigate>
+                                                    <span class="item-name">Consolidado de pendientes</span>
+                                                </a>
+                                            </li>
+                                        @endcan
                                         <li class="nav-item"><a class="nav-link "
                                                 href="./errors/error404.html">404</a></li>
                                         <li class="nav-item"><a class="nav-link "
                                                 href="./errors/error500.html">505</a></li>
                                     </ul>
                                 </li>
+                                @can('administrative-providers-read')
+                                    <li class="nav-item">
+                                        <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#administrativeModule"
+                                            role="button" aria-expanded="false" aria-controls="administrativeModule">
+                                            Administrativo
+                                            <i class="right-icon">
+                                                <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
+                                                    xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M8.5 5L15.5 12L8.5 19" stroke="currentColor"
+                                                        stroke-width="1.5" stroke-linecap="round"
+                                                        stroke-linejoin="round"></path>
+                                                </svg>
+                                            </i>
+                                        </a>
+                                        <ul aria-expanded="false" class="iq-header-sub-menu left list-unstyled collapse"
+                                            id="administrativeModule">
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{{ route('administrative-providers.index') }}" wire:navigate>
+                                                    <span class="item-name">Proveedores</span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                @endcan
+                                @can('hr-characteristics-read')
+                                    <li class="nav-item">
+                                        <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#humanResourcesModule"
+                                            role="button" aria-expanded="false" aria-controls="humanResourcesModule">
+                                            Talento Humano
+                                            <i class="right-icon">
+                                                <svg class="icon-20" width="20" viewBox="0 0 24 24" fill="none"
+                                                    xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M8.5 5L15.5 12L8.5 19" stroke="currentColor"
+                                                        stroke-width="1.5" stroke-linecap="round"
+                                                        stroke-linejoin="round"></path>
+                                                </svg>
+                                            </i>
+                                        </a>
+                                        <ul aria-expanded="false" class="iq-header-sub-menu left list-unstyled collapse"
+                                            id="humanResourcesModule">
+                                            <li class="nav-item">
+                                                <a class="nav-link" href="{{ route('hr-characteristics.index') }}" wire:navigate>
+                                                    <span class="item-name">Características</span>
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                @endcan
                                 <li class="nav-item">
                                     <a class="nav-link menu-arrow" data-bs-toggle="collapse" href="#extraPlugins"
                                         role="button" aria-expanded="false" aria-controls="extraPlugins">
@@ -798,6 +949,13 @@
                         </span>
                     </a>
                 </li>
+                {{-- Ayuda contextual: abre en la guía el tema de la pantalla actual (GuideCatalog::forRoute). --}}
+                <li class="nav-item">
+                    <a href="{{ route('guide.index', ['context' => request()->route()?->getName()]) }}" wire:navigate
+                       class="nav-link" id="guide-help" title="Ayuda de esta pantalla" aria-label="Ayuda de esta pantalla">
+                        <i class="bi bi-question-circle fs-4" aria-hidden="true"></i>
+                    </a>
+                </li>
                 <li class="nav-item dropdown">
                     {{-- <a class="py-0 nav-link d-flex align-items-center ps-3" href="#" id="profile-setting"
                         role="button" data-bs-toggle="dropdown" aria-expanded="false">{{ auth()->user()->initials() }}
@@ -842,10 +1000,13 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end custom-drop-mode2" aria-labelledby="profile-setting">
                         <li>
-                            <a class="dropdown-item" href="{{ route('profile.edit') }}" wire:navigate>Profile</a>
+                            <a class="dropdown-item" href="{{ route('profile.edit') }}" wire:navigate>Perfil</a>
                         </li>
                         <li>
-                            <a class="dropdown-item" href="{{ route('profile.edit') }}" wire:navigate>Configuración</a>
+                            <a class="dropdown-item" href="{{ route('security.edit') }}" wire:navigate>Seguridad</a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ route('guide.index') }}" wire:navigate>Guía de usuario</a>
                         </li>
                         <li>
                             <hr class="dropdown-divider" />

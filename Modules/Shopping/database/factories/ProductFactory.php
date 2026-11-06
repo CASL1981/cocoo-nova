@@ -25,8 +25,8 @@ class ProductFactory extends Factory
             'measure_unit' => fake()->randomElement(['Caja', 'Frasco', 'Tableta', 'Unidad']),
             'generic_name' => fake()->word(),
             'generic_code' => fake()->unique()->numberBetween(1000, 9999),
+            'supplier_nit' => fake()->optional()->numberBetween(800000000, 999999999),
             'status' => ProductStatus::Active,
         ];
     }
 }
-

@@ -3,11 +3,11 @@
 namespace Database\Seeders;
 
 use App\Models\Role;
-use App\Models\User;
+use App\Support\PermissionCatalog;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Modules\Shopping\Database\Seeders\ProductPermissionsSeeder;
-use Spatie\Permission\Models\Permission;
+use Modules\HumanResources\Database\Seeders\PositionSeeder;
+use Modules\Shopping\Database\Seeders\ShoppingDatabaseSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -25,32 +25,27 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Operaciones'],
         ]);
 
-        $this->call([
-            UserPermissionsSeeder::class,
-            RolePermissionsSeeder::class,
-            ServicePointPermissionsSeeder::class,   // ← nuevo
-            ServicePointSeeder::class,
-            ProductPermissionsSeeder::class
-        ]);
+        // AllModulePermissionsSeeder también entrega todo el catálogo al rol Administrador.
+        $this->call([AllModulePermissionsSeeder::class, ServicePointSeeder::class, ProcessSeeder::class, CharacteristicOptionSeeder::class,
+            ReferenceCatalogSeeder::class]);
 
-        User::factory(49)->create();
+        // Operaciones gestiona Farmacia: todas las acciones de sus módulos.
+        Role::where('name', 'Operaciones')->first()?->givePermissionTo(
+            collect(['stock-outs', 'pendings', 'inventory-balances'])
+                ->flatMap(fn (string $module) => PermissionCatalog::allForModule($module))
+                ->all()
+        );
 
-        $user = User::factory()->create([
-            'identification' => '123456789',
-            'name' => 'Carlos',
-            'lastname' => 'Sibaja',
-            'email' => 'contabilidad@coodescor.org.co',
-            'role_id' => Role::where('name', 'Administrador')->first()->id,
-        ]);
+        // Usuarios reales del sistema anterior de requisiciones (doc/users.csv).
+        $this->call(UserSeeder::class);
 
-        $user->assignRole('Administrador');
+        // Catálogo real desde database/DB.xlsx (o factory si el archivo no existe).
+        $this->call(ShoppingDatabaseSeeder::class);
 
-        $role = Role::where('name', 'Administrador')->first();
+        // Proveedores del sistema anterior de requisiciones (vinculación administrativa) y COODESCOR.
+        $this->call(ProviderSeeder::class);
 
-        if ($role) {
-            $role->syncPermissions(
-                Permission::pluck('name')->toArray()
-            );
-        }
+        // Cargos del organigrama vigente (Talento Humano → Características → Cargos).
+        $this->call(PositionSeeder::class);
     }
 }

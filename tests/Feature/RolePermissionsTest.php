@@ -5,10 +5,12 @@ use App\Livewire\Roles\RolePermissionsModal;
 use App\Models\Role;
 use App\Models\User;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 beforeEach(function () {
-    (new SeedModulePermissions())->execute('users');
-    (new SeedModulePermissions())->execute('roles');
+    (new SeedModulePermissions)->execute('users');
+    (new SeedModulePermissions)->execute('roles');
 });
 
 it('asigna los permisos seleccionados a un rol', function () {
@@ -41,7 +43,7 @@ it('permite ver permisos de solo lectura con el permiso roles-read', function ()
     $targetRole->syncPermissions(['users-read', 'users-create']);
 
     $component = Livewire::actingAs($viewer)
-        ->test(\App\Livewire\Roles\RolePermissionsModal::class)
+        ->test(RolePermissionsModal::class)
         ->call('openReadOnly', $targetRole->id)
         ->assertSet('readOnly', true)
         ->assertSet('matrix.users.read', true)
@@ -64,7 +66,27 @@ it('bloquea ver permisos sin el permiso roles-read', function () {
     $targetRole = Role::factory()->create();
 
     Livewire::actingAs($user)
-        ->test(\App\Livewire\Roles\RolePermissionsModal::class)
+        ->test(RolePermissionsModal::class)
         ->call('openReadOnly', $targetRole->id)
         ->assertForbidden();
+});
+
+it('crea los permisos del catálogo que aún no existen en la base al guardar', function () {
+    $role = Role::factory()->create();
+    $admin = actingAsAdmin();
+
+    // Simula un módulo agregado al catálogo después de sembrar la base.
+    Permission::where('name', 'like', 'company-settings-%')->delete();
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+    Livewire::actingAs($admin)
+        ->test(RolePermissionsModal::class)
+        ->call('openEditable', $role->id)
+        ->set('matrix.company-settings.read', true)
+        ->set('matrix.unknown-module.read', true)
+        ->call('save')
+        ->assertDispatched('role-permissions-saved');
+
+    expect($role->refresh()->hasPermissionTo('company-settings-read'))->toBeTrue()
+        ->and(Permission::where('name', 'unknown-module-read')->exists())->toBeFalse();
 });

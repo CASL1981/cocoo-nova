@@ -35,7 +35,9 @@ new #[Layout('layouts.auth')] #[Title('Actualiza tu contraseña')] class extends
         ])->save();
 
         session()->flash('success', 'Tu contraseña fue actualizada correctamente.');
-        $this->redirectRoute('dashboard', navigate: true);
+        // Recarga completa, sin wire:navigate: este layout (auth) y el de la aplicación cargan
+        // Livewire/Alpine de forma distinta y la navegación SPA dejaría dos instancias activas.
+        $this->redirectRoute('dashboard');
     }
 };
 ?>

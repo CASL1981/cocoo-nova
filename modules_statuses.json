@@ -1,3 +1,6 @@
 {
-    "Shopping": true
+    "Shopping": true,
+    "Pharmacy": true,
+    "Administrative": true,
+    "HumanResources": true
 }

@@ -12,6 +12,6 @@ class ServicePointPermissionsSeeder extends Seeder
      */
     public function run(): void
     {
-        (new SeedModulePermissions())->execute('service-points');
+        (new SeedModulePermissions)->execute('service-points');
     }
 }

@@ -7,6 +7,10 @@ trait SanitizesPayload
     /**
      * Convierte cadenas vacías en null y descarta claves opcionales (como password)
      * cuando vienen vacías, para no pisar un valor existente al editar.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  list<string>  $dropIfEmpty
+     * @return array<string, mixed>
      */
     protected function sanitize(array $data, array $dropIfEmpty = []): array
     {

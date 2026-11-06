@@ -14,7 +14,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Layout;
 
-new #[Layout('layouts.app')] #[Title('Security settings')] class extends Component {
+new #[Layout('layouts.app')] #[Title('Configuración de seguridad')] class extends Component {
     use PasswordValidationRules;
 
     public string $current_password = '';
@@ -188,6 +188,7 @@ new #[Layout('layouts.app')] #[Title('Security settings')] class extends Compone
                         <li class="nav-item">
                             <a href="{{ route('profile.edit') }}"
                                class="nav-link">
+                                <i class="bi bi-person me-2" aria-hidden="true"></i>
                                 {{ __('Profile') }}
                             </a>
                         </li>
@@ -195,6 +196,7 @@ new #[Layout('layouts.app')] #[Title('Security settings')] class extends Compone
                         <li class="nav-item">
                             <a href="{{ route('security.edit') }}"
                                class="nav-link active">
+                                <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>
                                 {{ __('Security') }}
                             </a>
                         </li>
@@ -221,76 +223,33 @@ new #[Layout('layouts.app')] #[Title('Security settings')] class extends Compone
                 <div class="card-body">
 
                     <form wire:submit="updatePassword">
+                        <div class="row g-3">
+                            {{-- Contraseña actual --}}
+                            <div class="col-md-6">
+                                <x-forms.input name="current_password" type="password" :label="__('Current password')"
+                                               required autocomplete="current-password" />
+                            </div>
+                            <div class="col-md-6 d-none d-md-block"></div>
 
-                        {{-- Contraseña actual --}}
-                        <div class="mb-3">
-                            <label for="current_password" class="form-label">
-                                {{ __('Current password') }}
-                            </label>
-
-                            <input
-                                id="current_password"
-                                type="password"
-                                class="form-control @error('current_password') is-invalid @enderror"
-                                wire:model="current_password"
-                                required
-                                autocomplete="current-password"
-                            >
-
-                            @error('current_password')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                            @enderror
+                            {{-- Nueva contraseña y confirmación --}}
+                            <div class="col-md-6">
+                                <x-forms.input name="password" type="password" :label="__('New password')" required autocomplete="new-password"
+                                               passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}" />
+                            </div>
+                            <div class="col-md-6">
+                                <x-forms.input name="password_confirmation" type="password" :label="__('Confirm password')"
+                                               required autocomplete="new-password" />
+                            </div>
                         </div>
 
-                        {{-- Nueva contraseña --}}
-                        <div class="mb-3">
-                            <label for="password" class="form-label">
-                                {{ __('New password') }}
-                            </label>
-
-                            <input
-                                id="password"
-                                type="password"
-                                class="form-control @error('password') is-invalid @enderror"
-                                wire:model="password"
-                                required
-                                autocomplete="new-password"
-                                passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
-                            >
-
-                            @error('password')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                            @enderror
+                        <div class="form-actions mt-4">
+                            <button type="submit" class="btn btn-primary app-modal-submit" data-test="update-password-button"
+                                    wire:loading.attr="disabled" wire:target="updatePassword">
+                                <i class="bi bi-check2" wire:loading.remove wire:target="updatePassword" aria-hidden="true"></i>
+                                <span class="spinner-border spinner-border-sm" wire:loading wire:target="updatePassword" aria-hidden="true"></span>
+                                {{ __('Save') }}
+                            </button>
                         </div>
-
-                        {{-- Confirmación --}}
-                        <div class="mb-4">
-                            <label for="password_confirmation" class="form-label">
-                                {{ __('Confirm password') }}
-                            </label>
-
-                            <input
-                                id="password_confirmation"
-                                type="password"
-                                class="form-control"
-                                wire:model="password_confirmation"
-                                required
-                                autocomplete="new-password"
-                            >
-                        </div>
-
-                        <button
-                            type="submit"
-                            class="btn btn-primary"
-                            data-test="update-password-button"
-                        >
-                            {{ __('Save') }}
-                        </button>
-
                     </form>
 
                 </div>

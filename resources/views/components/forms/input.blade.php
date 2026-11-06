@@ -1,24 +1,23 @@
+{{-- resources/views/components/forms/input.blade.php --}}
 @props([
-    'name',              // ej: "form.name" -> usado para wire:model, error() e id
+    'name',
     'label' => null,
     'type' => 'text',
     'autocomplete' => null,
+    'id' => null,
+    'required' => false,      // Asterisco en la etiqueta (la validación es del servidor).
+    'hint' => null,
+    'modelModifier' => null,  // Ej. 'live.debounce.300ms' para wire:model.live.debounce.300ms.
 ])
 
 @php
-    $id = str_replace('.', '-', $name);
+    $id = $id ?? str_replace('.', '-', $name);
+    $model = $modelModifier ? "wire:model.{$modelModifier}" : 'wire:model';
 @endphp
 
-<div>
-    @if ($label)
-        <label class="form-label fw-medium" for="{{ $id }}">{{ $label }}</label>
-    @endif
-
-    <input id="{{ $id }}" type="{{ $type }}" wire:model="{{ $name }}"
+<x-forms.field :id="$id" :name="$name" :label="$label" :required="$required" :hint="$hint">
+    <input id="{{ $id }}" type="{{ $type }}" {{ $model }}="{{ $name }}"
            @if ($autocomplete) autocomplete="{{ $autocomplete }}" @endif
-           {{ $attributes->class(['form-control rounded-3', 'is-invalid' => $errors->has($name)]) }}>
-
-    @error($name)
-        <div class="invalid-feedback d-block">{{ $message }}</div>
-    @enderror
-</div>
+           @if ($required) aria-required="true" @endif
+           {{ $attributes->class(['form-control', 'is-invalid' => $errors->has($name)]) }}>
+</x-forms.field>

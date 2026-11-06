@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('identification')->unique();
             $table->string('name');
             $table->string('lastname');
-            $table->string('area')->nullable();
+            // El área del usuario es process_id (migración create_processes_table).
             $table->string('email')->unique();
             $table->string('status')->default('active');
             // No va en $fillable a propósito: solo el propio sistema debe poder tocarla,

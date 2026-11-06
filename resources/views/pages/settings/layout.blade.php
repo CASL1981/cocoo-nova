@@ -12,9 +12,7 @@
                     <li class="nav-item">
                         <a href="{{ route('profile.edit') }}"
                             class="nav-link {{ request()->routeIs('profile.edit') ? 'active' : '' }}">
-                            <i class="icon-20 me-2">
-                                {{-- Icono --}}
-                            </i>
+                            <i class="bi bi-person me-2" aria-hidden="true"></i>
                             {{ __('Profile') }}
                         </a>
                     </li>
@@ -22,9 +20,7 @@
                     <li class="nav-item">
                         <a href="{{ route('security.edit') }}"
                             class="nav-link {{ request()->routeIs('security.edit') ? 'active' : '' }}">
-                            <i class="icon-20 me-2">
-                                {{-- Icono --}}
-                            </i>
+                            <i class="bi bi-shield-lock me-2" aria-hidden="true"></i>
                             {{ __('Security') }}
                         </a>
                     </li>

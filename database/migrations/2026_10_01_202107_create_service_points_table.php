@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('code', 20)->unique();
             $table->string('name', 150);
+            $table->string('abbreviation', 20)->unique()->comment('Nombre abreviado de la sede; encabezado de columna en reportes (ej. consolidado de pendientes).');
             $table->string('type', 20)->default('other'); // headquarters | pharmacy | other
             $table->string('address')->nullable();
             $table->string('phone', 30)->nullable();
@@ -25,7 +26,7 @@ return new class extends Migration
             $table->string('status', 20)->default('active');
             $table->softDeletes();        // deleted_at (Laravel)
             $table->userstamps();         // created_by, updated_by (paquete)
-            $table->userstampSoftDeletes(); 
+            $table->userstampSoftDeletes();
             $table->timestamps();
         });
     }

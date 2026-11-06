@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -17,25 +18,37 @@ use Maatwebsite\Excel\Concerns\WithMapping;
  * en una fila. Así, agregar "Exportar" a un CRUD nuevo no exige crear una
  * clase de exportación por módulo — solo estos tres datos.
  */
-class GenericExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize
+/**
+ * @implements WithMapping<Model>
+ */
+class GenericExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping
 {
+    /**
+     * @param  Builder<covariant Model>  $query
+     * @param  list<string>  $headings
+     */
     public function __construct(
         private readonly Builder $query,
         private readonly array $headings,
         private readonly \Closure $mapRow,
-    ) {
-    }
+    ) {}
 
+    /** @return Builder<covariant Model> */
     public function query(): Builder
     {
         return $this->query;
     }
 
+    /** @return list<string> */
     public function headings(): array
     {
         return $this->headings;
     }
 
+    /**
+     * @param  Model  $row
+     * @return array<int, mixed>
+     */
     public function map($row): array
     {
         return ($this->mapRow)($row);

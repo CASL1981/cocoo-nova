@@ -7,6 +7,7 @@ use App\Livewire\Concerns\ManagesModal;
 use App\Livewire\Concerns\Notifies;
 use App\Livewire\Forms\RoleForm;
 use App\Models\Role;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -59,6 +60,7 @@ class RoleFormModal extends Component
         } catch (QueryException $e) {
             Log::error('roles.save_failed', ['role_id' => $role?->getKey(), 'error' => $e->getMessage()]);
             $this->toastError('No se pudo guardar el rol. Inténtalo de nuevo.');
+
             return;
         }
 
@@ -67,7 +69,7 @@ class RoleFormModal extends Component
         $this->closeModal();
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.roles.role-form-modal');
     }

@@ -195,6 +195,66 @@ document.addEventListener('livewire:navigated', () => {
     }
 });
 
+// Tooltip Bootstrap declarativo: x-tooltip="'Texto'" (ubicación opcional: x-tooltip.bottom).
+// Se crea y destruye con el elemento, así no quedan tooltips huérfanos tras los re-renderizados
+// de Livewire. Uso habitual a través del componente Blade <x-tooltip>.
+Alpine.directive('tooltip', (el, { modifiers, expression }, { evaluate, cleanup }) => {
+    const tooltip = new bootstrap.Tooltip(el, {
+        title: evaluate(expression),
+        placement: modifiers[0] ?? 'top',
+        trigger: 'hover',
+    });
+
+    // Al abrir un modal o una confirmación el puntero no sale del botón: se oculta al hacer clic.
+    const hide = () => tooltip.hide();
+    el.addEventListener('click', hide);
+
+    cleanup(() => {
+        el.removeEventListener('click', hide);
+        tooltip.dispose();
+    });
+});
+
+// Texto completo de celdas recortadas: si el contenido de una celda de tabla no cabe
+// (ancho fijo con "…"), al pasar el mouse se muestra en un tooltip como el de los botones.
+// Delegado en document: aplica a todas las tablas, incluidas las que Livewire re-renderiza.
+// Solo hay un tooltip de celda a la vez; se descarta al salir, al desplazarse o si Livewire
+// reemplaza la celda (al siguiente movimiento del mouse).
+let cellTooltip = null;
+
+const hideCellTooltip = () => {
+    cellTooltip?.tooltip.dispose();
+    cellTooltip = null;
+};
+
+document.addEventListener('mouseover', (event) => {
+    const cell = event.target.closest?.('.table td, .table th') ?? null;
+
+    if (cellTooltip && (cellTooltip.cell !== cell || ! cellTooltip.cell.isConnected)) {
+        hideCellTooltip();
+    }
+
+    if (! cell || cellTooltip || cell.querySelector('input, select, textarea, button, a, .dropdown-menu')) {
+        return;
+    }
+
+    if (cell.scrollWidth <= cell.clientWidth + 1) {
+        return;
+    }
+
+    const text = cell.textContent.replace(/\s+/g, ' ').trim();
+
+    if (text === '') {
+        return;
+    }
+
+    const tooltip = new bootstrap.Tooltip(cell, { title: text, placement: 'top', trigger: 'manual', container: 'body' });
+    cellTooltip = { cell, tooltip };
+    tooltip.show();
+});
+
+document.addEventListener('scroll', hideCellTooltip, { capture: true, passive: true });
+
 Livewire.start();
 
 // ========================================

@@ -7,8 +7,8 @@ use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -24,7 +24,14 @@ use Spatie\Permission\Traits\HasRoles;
 /**
  * @property int $id
  * @property string $name
+ * @property string $lastname
+ * @property string $identification
  * @property string $email
+ * @property UserStatus $status
+ * @property int|null $role_id
+ * @property int|null $service_point_id
+ * @property int|null $process_id
+ * @property bool $can_request_supplies
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -34,12 +41,13 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['identification', 'name', 'lastname', 'area', 'email', 'status', 'role_id', 'service_point_id', 'password', 'profile_photo_path'])]
+#[Fillable(['identification', 'name', 'lastname', 'process_id', 'can_request_supplies', 'email', 'status', 'role_id', 'service_point_id', 'pending_service_point_id', 'password', 'profile_photo_path'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
     use HasRoles;
     use SoftDeletes;
     use Userstamps;
@@ -56,6 +64,7 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'status' => UserStatus::class,
             'must_change_password' => 'boolean',
+            'can_request_supplies' => 'boolean',
         ];
     }
 
@@ -64,7 +73,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function initials(): string
     {
-        $initials = Str::initials($this->fullName() , true);
+        $initials = Str::initials($this->fullName(), true);
 
         return Str::length($initials) > 1
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
@@ -73,7 +82,6 @@ class User extends Authenticatable implements PasskeyUser
 
     /**
      * Summary of fullName
-     * @return string
      */
     public function fullName(): string
     {
@@ -81,29 +89,68 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * Summary of scopeSearch
-     * @param Builder $query
-     * @param mixed $term
-     * @return Builder
+     * Búsqueda por nombre, apellido, correo o identificación.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
      */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
         return $query->when($term, fn (Builder $q) => $q->where(function (Builder $q) use ($term) {
             $q->where('name', 'like', "%{$term}%")
-            ->orWhere('email', 'like', "%{$term}%")
-            ->orWhere('identification', 'like', "%{$term}%")
-            ->orWhere('lastname', 'like', "%{$term}%")
-            ->orWhere('area', 'like', "%{$term}%");
+                ->orWhere('email', 'like', "%{$term}%")
+                ->orWhere('identification', 'like', "%{$term}%")
+                ->orWhere('lastname', 'like', "%{$term}%");
         }));
     }
 
+    /**
+     * Rol primario del usuario (users.role_id), el que se muestra en la interfaz.
+     *
+     * @return BelongsTo<Role, $this>
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * Proceso (área) al que pertenece el usuario.
+     *
+     * @return BelongsTo<Process, $this>
+     */
+    public function process(): BelongsTo
+    {
+        return $this->belongsTo(Process::class);
+    }
+
+    /**
+     * Sede a la que pertenece el usuario.
+     *
+     * @return BelongsTo<ServicePoint, $this>
+     */
     public function servicePoint(): BelongsTo
     {
         return $this->belongsTo(ServicePoint::class);
+    }
+
+    /**
+     * Sede preferida para visualizar pendientes de farmacia; null muestra todas.
+     *
+     * @return BelongsTo<ServicePoint, $this>
+     */
+    public function pendingServicePoint(): BelongsTo
+    {
+        return $this->belongsTo(ServicePoint::class, 'pending_service_point_id');
+    }
+
+    /**
+     * Indica si el usuario pertenece a la Oficina Principal (sede código 1),
+     * que gestiona información de todas las sedes.
+     * loadMissing: la sede se consulta una sola vez por petición, aun en acciones masivas.
+     */
+    public function worksAtHeadquarters(): bool
+    {
+        return (bool) $this->loadMissing('servicePoint')->servicePoint?->isHeadquarters();
     }
 }

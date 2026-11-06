@@ -3,12 +3,13 @@
 namespace Database\Factories;
 
 use App\Enums\UserStatus;
+use App\Models\Process;
 use App\Models\Role;
+use App\Models\ServicePoint;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use App\Models\ServicePoint;
 
 /**
  * @extends Factory<User>
@@ -31,7 +32,8 @@ class UserFactory extends Factory
             'identification' => fake()->unique()->randomNumber(9, true),
             'name' => fake()->name(),
             'lastname' => fake()->lastName(),
-            'area' => fake()->randomElement(['Administrativa', 'Comercial', 'Farmacia', 'Financiero']),
+            'process_id' => Process::factory(),
+            'can_request_supplies' => false,
             'email' => fake()->unique()->safeEmail(),
             'status' => UserStatus::Active,
             'role_id' => Role::query()->inRandomOrder()->value('id'),

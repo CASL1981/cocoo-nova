@@ -4,7 +4,6 @@ namespace App\Notifications\Users;
 
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -38,9 +37,9 @@ class UserCreatedConfirmation extends Notification
     /**
      * Get the mail representation of the notification.
      */
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(User $notifiable): MailMessage
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject('Usuario creado en '.config('app.name'))
             ->greeting('Hola '.$notifiable->name.',')
             ->line("Creaste exitosamente el usuario {$this->createdUser->name} {$this->createdUser->lastname} ({$this->createdUser->email}) en ".config('app.name').'.')

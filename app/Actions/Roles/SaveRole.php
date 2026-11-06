@@ -14,9 +14,10 @@ class SaveRole
         //
     }
 
+    /** @param array<string, mixed> $data */
     public function execute(array $data, ?Role $role = null): Role
     {
-        $role ??= new Role();
+        $role ??= new Role;
         $role->fill($data)->save();
 
         return $role;

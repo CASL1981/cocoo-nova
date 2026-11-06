@@ -1,30 +1,27 @@
 <?php
 
+// app/Livewire/Concerns/HasBulkRowActions.php
+
 namespace App\Livewire\Concerns;
 
 use App\Contracts\HasToggleableStatus;
 use Closure;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 
-/**
- * Acciones en lote (eliminar / activar-desactivar / restaurar) sobre filas
- * marcadas con checkbox, para cualquier listado que use SoftDeletes y las
- * habilidades estándar de Policy (delete, toggle, restore).
- *
- * El componente anfitrión solo declara:
- *   protected function rowModelClass(): string { return Product::class; }
- *   protected string $computedRowsProperty = 'products'; // nombre del #[Computed]
- *
- * Requiere también el trait Notifies (toastSuccess) en el componente.
- * Incluye HasRowSelection automáticamente — no hace falta declararlo aparte.
- */
 trait HasBulkRowActions
 {
     use HasRowSelection;
 
-    // protected string $computedRowsProperty = 'items';
-
-    abstract protected function rowModelClass(): string;
+    // Ya NO se declara: protected string $computedRowsProperty = 'items';
+    // Cada componente lo expone mediante este método — igual que
+    // sortableColumns() en HasSortableColumns. Declarar una propiedad con
+    // valor por defecto DENTRO de un trait rompe en cuanto el componente
+    // que lo usa necesita un valor distinto (ver el error de $sortBy que
+    // ya tuvimos): PHP exige que la declaración sea idéntica en ambos
+    // lados, así que propiedades con estado específico de cada pantalla
+    // nunca deben vivir en el trait.
+    abstract protected function computedRowsProperty(): string;
 
     public function deleteSelected(): void
     {
@@ -44,18 +41,19 @@ trait HasBulkRowActions
     {
         $model = $this->rowModelClass();
 
-        $count = 0;
+        $count = $denied = 0;
         foreach ($model::onlyTrashed()->whereKey($this->selectedIds())->get() as $row) {
             if (Gate::allows('restore', $row)) {
                 $row->restore();
                 $count++;
+            } else {
+                $denied++;
             }
         }
 
-        $this->finishBulkAction($count, 'restaurado(s)');
+        $this->finishBulkAction($count, 'restaurado(s)', $denied);
     }
 
-    /** ¿Hay exactamente UNA fila seleccionada y no está eliminada? Para Editar/Auditar. */
     public function singleActiveSelected(): bool
     {
         if (count($this->selected) !== 1) {
@@ -67,9 +65,13 @@ trait HasBulkRowActions
         return $model::whereKey($this->selectedIds())->whereNull('deleted_at')->exists();
     }
 
-    /** Clase CSS de la fila: eliminado tiene prioridad sobre inactivo. */
-    public function rowStatusClass($row): string
+    /** Clase de la fila: roja si está eliminada, amarilla si está inactiva. */
+    public function rowStatusClass(mixed $row): string
     {
+        if (! $row instanceof Model) {
+            return '';
+        }
+
         if (method_exists($row, 'trashed') && $row->trashed()) {
             return 'table-danger';
         }
@@ -81,25 +83,41 @@ trait HasBulkRowActions
         return '';
     }
 
-    private function runBulkAction(string $ability, Closure $action, string $verb): void
+    abstract protected function rowModelClass(): string;
+
+    /**
+     * Ejecuta la acción sobre cada fila seleccionada que la Policy autorice.
+     * Las filas no autorizadas se omiten y se informan al usuario con $deniedMessage
+     * (o un mensaje genérico), en lugar de fallar en silencio.
+     */
+    private function runBulkAction(string $ability, Closure $action, string $verb, ?string $deniedMessage = null): void
     {
         $model = $this->rowModelClass();
 
-        $count = 0;
+        $count = $denied = 0;
         foreach ($model::whereKey($this->selectedIds())->get() as $row) {
             if (Gate::allows($ability, $row)) {
                 $action($row);
                 $count++;
+            } else {
+                $denied++;
             }
         }
 
-        $this->finishBulkAction($count, $verb);
+        $this->finishBulkAction($count, $verb, $denied, $deniedMessage);
     }
 
-    private function finishBulkAction(int $count, string $verb): void
+    private function finishBulkAction(int $count, string $verb, int $denied = 0, ?string $deniedMessage = null): void
     {
         $this->clearSelection();
-        unset($this->{$this->computedRowsProperty});
-        $this->toastSuccess("{$count} registro(s) {$verb}");
+        unset($this->{$this->computedRowsProperty()});   // ← ahora es llamada de método, con ()
+
+        if ($count > 0 || $denied === 0) {
+            $this->toastSuccess("{$count} registro(s) {$verb}");
+        }
+
+        if ($denied > 0) {
+            $this->toastError("{$denied} registro(s) omitido(s): ".($deniedMessage ?? 'no tienes permiso o su estado no permite esta acción.'));
+        }
     }
 }

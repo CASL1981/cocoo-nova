@@ -16,10 +16,31 @@ class ServicePointPolicy
 
     protected string $module = 'service-points';
 
-    public function viewAny(User $actor): bool { return $this->can($actor, 'read'); }
-    public function view(User $actor, ServicePoint $servicePoint): bool { return $this->can($actor, 'read'); }
-    public function create(User $actor): bool { return $this->can($actor, 'create'); }
-    public function update(User $actor, ServicePoint $servicePoint): bool { return $this->can($actor, 'update'); }
+    public function viewAny(User $actor): bool
+    {
+        return $this->can($actor, 'read');
+    }
+
+    public function view(User $actor, ServicePoint $servicePoint): bool
+    {
+        return $this->can($actor, 'read');
+    }
+
+    public function create(User $actor): bool
+    {
+        return $this->can($actor, 'create');
+    }
+
+    /** Duplicar un registro exige el mismo permiso de crear. */
+    public function duplicate(User $actor, ServicePoint $servicePoint): bool
+    {
+        return $this->can($actor, 'create');
+    }
+
+    public function update(User $actor, ServicePoint $servicePoint): bool
+    {
+        return $this->can($actor, 'update');
+    }
 
     public function delete(User $actor, ServicePoint $servicePoint): bool
     {

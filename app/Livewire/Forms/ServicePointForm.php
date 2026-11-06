@@ -19,19 +19,31 @@ class ServicePointForm extends Form
     public ?ServicePoint $servicePoint = null;
 
     public string $code = '';
+
     public string $name = '';
+
+    // Nombre corto: encabezado de columna en reportes (consolidado de pendientes).
+    public string $abbreviation = '';
+
     public string $type = 'other';
+
     public string $address = '';
+
     public string $phone = '';
+
     public string $minimum = '';
+
     public string $maximum = '';
+
     public string $status = 'active';
 
+    /** @return array<string, array<int, mixed>> */
     protected function rules(): array
     {
         return [
             'code' => ['required', 'string', 'max:20', Rule::unique('service_points', 'code')->ignore($this->servicePoint)],
             'name' => ['required', 'string', 'max:150'],
+            'abbreviation' => ['required', 'string', 'max:20', Rule::unique('service_points', 'abbreviation')->ignore($this->servicePoint)],
             'type' => ['required', Rule::enum(ServicePointType::class)],
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
@@ -46,6 +58,7 @@ class ServicePointForm extends Form
         $this->servicePoint = $servicePoint;
         $this->code = $servicePoint->code;
         $this->name = $servicePoint->name;
+        $this->abbreviation = $servicePoint->abbreviation;
         $this->type = $servicePoint->type->value;
         $this->address = (string) ($servicePoint->address ?? '');
         $this->phone = (string) ($servicePoint->phone ?? '');
@@ -54,6 +67,7 @@ class ServicePointForm extends Form
         $this->status = $servicePoint->status->value;
     }
 
+    /** @return array<string, mixed> */
     public function payload(): array
     {
         return $this->sanitize($this->validate());

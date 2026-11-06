@@ -65,3 +65,9 @@ test('users can logout', function () {
 
     $this->assertGuest();
 });
+test('login form includes the csrf token and spanish labels', function () {
+    $this->get(route('login'))
+        ->assertOk()
+        ->assertSee('name="_token"', false)
+        ->assertSee('Correo electrónico');
+});

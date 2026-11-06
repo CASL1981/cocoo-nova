@@ -7,6 +7,7 @@ use App\Livewire\Concerns\ManagesModal;
 use App\Livewire\Concerns\Notifies;
 use App\Livewire\Forms\ServicePointForm;
 use App\Models\ServicePoint;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -52,6 +53,7 @@ class ServicePointFormModal extends Component
         } catch (QueryException $e) {
             Log::error('service_points.save_failed', ['id' => $servicePoint?->getKey(), 'error' => $e->getMessage()]);
             $this->toastError('No se pudo guardar el centro de costos. Inténtalo de nuevo.');
+
             return;
         }
 
@@ -60,7 +62,7 @@ class ServicePointFormModal extends Component
         $this->closeModal();
     }
 
-    public function render()
+    public function render(): View
     {
         return view('livewire.service-points.service-point-form-modal');
     }

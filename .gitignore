@@ -22,3 +22,10 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/tests/Browser/Screenshots
+/tests/Browser/Traces
+/doc
+/database/*.sqlite
+/database/DB.xlsx
+/database/data
+/database/seeders

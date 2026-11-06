@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\DuplicatesRows;
 use App\Livewire\Concerns\HasAuthScopedSession;
 use App\Livewire\Concerns\HasSortableColumns;
 use App\Livewire\Concerns\Notifies;
@@ -22,7 +23,16 @@ use Maatwebsite\Excel\Facades\Excel;
  */
 new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Component
 {
-    use WithPagination, HasAuthScopedSession, HasSortableColumns, Notifies;
+    use WithPagination, DuplicatesRows, HasAuthScopedSession, HasSortableColumns, Notifies;
+
+    protected function rowModelClass(): string { return ServicePoint::class; }
+    protected function computedRowsProperty(): string { return 'servicePoints'; }
+
+    /** Duplica la sede de la fila (sin selección por checkbox en este listado). */
+    public function duplicate(int $id): void
+    {
+        $this->duplicateRecord($id);
+    }
 
     private const PER_PAGE = [10, 25, 50, 100];
 
@@ -58,7 +68,7 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
 
     protected function sortableColumns(): array
     {
-        return ['id', 'code', 'name', 'type', 'status', 'created_at'];
+        return ['id', 'code', 'name', 'abbreviation', 'type', 'status', 'created_at'];
     }
 
     #[Computed]
@@ -103,10 +113,11 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
 
         $export = new GenericExport(
             query: $query,
-            headings: ['Código', 'Nombre', 'Tipo', 'Estado', 'Creado'],
+            headings: ['Código', 'Nombre', 'Abreviatura', 'Tipo', 'Estado', 'Creado'],
             mapRow: fn (ServicePoint $sp) => [
                 $sp->code,
                 $sp->name,
+                $sp->abbreviation,
                 $sp->type->label(),
                 $sp->status->label(),
                 $sp->created_at->format('Y-m-d'),
@@ -143,7 +154,7 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
                 </div>
                 <div class="col-md-6">
                     <input type="search" wire:model.live.debounce.300ms="filterName"
-                           class="form-control form-control-sm" placeholder="Buscar por código o nombre...">
+                           class="form-control form-control-sm" placeholder="Buscar por código, nombre o abreviatura...">
                 </div>
                 <div class="col-md-3 text-md-end">
                     <button type="button" wire:click="export('xlsx')" class="btn btn-sm btn-outline-success">
@@ -162,7 +173,7 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
                 <table class="table table-striped align-middle">
                     <thead>
                         <tr>
-                            @foreach (['code' => 'Código', 'name' => 'Nombre', 'type' => 'Tipo', 'status' => 'Estado', 'created_at' => 'Creado'] as $col => $label)
+                            @foreach (['code' => 'Código', 'name' => 'Nombre', 'abbreviation' => 'Abreviatura', 'type' => 'Tipo', 'status' => 'Estado', 'created_at' => 'Creado'] as $col => $label)
                                 <th role="button" wire:click="sort('{{ $col }}')">
                                     {{ $label }}
                                     @if ($sortBy === $col) {{ $sortDirection === 'asc' ? '▲' : '▼' }} @endif
@@ -176,6 +187,7 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
                             <tr wire:key="sp-{{ $sp->id }}">
                                 <td>{{ $sp->code }}</td>
                                 <td>{{ $sp->name }}</td>
+                                <td>{{ $sp->abbreviation }}</td>
                                 <td>{{ $sp->type->label() }}</td>
                                 <td><span class="badge {{ $sp->status->badgeClass() }}">{{ $sp->status->label() }}</span></td>
                                 <td>{{ $sp->created_at->format('Y/m/d') }}</td>
@@ -183,6 +195,10 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
                                     @can('update', $sp)
                                         <button type="button" wire:click="$dispatch('open-service-point-edit', { servicePointId: {{ $sp->id }} })"
                                                 class="btn btn-sm btn-outline-primary">Editar</button>
+                                    @endcan
+                                    @can('duplicate', $sp)
+                                        <button type="button" wire:click="duplicate({{ $sp->id }})" wire:loading.attr="disabled"
+                                                class="btn btn-sm btn-outline-primary" title="Duplicar" aria-label="Duplicar"><i class="bi bi-copy"></i></button>
                                     @endcan
                                     @can('delete', $sp)
                                         <button type="button"
@@ -197,16 +213,13 @@ new #[Layout('layouts.app')] #[Title('Sedes y Servicios')] class extends Compone
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center text-muted py-4">Sin resultados</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-4">Sin resultados</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <span>Mostrando {{ $this->servicePoints->firstItem() ?? 0 }} a {{ $this->servicePoints->lastItem() ?? 0 }} de {{ $this->servicePoints->total() }} registros</span>
-                {{ $this->servicePoints->links() }}
-            </div>
+            <x-table.pagination :paginator="$this->servicePoints" />
         </div>
     </div>
 

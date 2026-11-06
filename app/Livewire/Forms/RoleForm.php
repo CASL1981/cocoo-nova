@@ -17,14 +17,15 @@ class RoleForm extends Form
 
     public string $guard_name = 'web';
 
+    /** @return array<string, array<int, mixed>> */
     protected function rules(): array
     {
         return [
             'name' => [
-            'required', 'string', 'max:100',
-            Rule::unique('roles', 'name')
-                ->where(fn ($q) => $q->where('guard_name', $this->guard_name))
-                ->ignore($this->role),
+                'required', 'string', 'max:100',
+                Rule::unique('roles', 'name')
+                    ->where(fn ($q) => $q->where('guard_name', $this->guard_name))
+                    ->ignore($this->role),
             ],
         ];
     }
@@ -36,6 +37,7 @@ class RoleForm extends Form
         $this->guard_name = $role->guard_name;
     }
 
+    /** @return array<string, mixed> */
     public function payload(): array
     {
         return $this->sanitize([...$this->validate(), 'guard_name' => $this->guard_name]);

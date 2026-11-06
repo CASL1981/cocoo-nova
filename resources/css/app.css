@@ -44,6 +44,61 @@
 }
 
 /* =========================================================
+   TABLAS COMPACTAS SIN SCROLL HORIZONTAL (.table-fit)
+   Envolver la tabla (o <x-data-table>) en <div class="table-fit"> para
+   paneles angostos (p. ej. dos tablas lado a lado): reduce el relleno
+   lateral de Qompac (1.5rem), permite partir textos largos y deja las
+   columnas cortas (.col-fit) al ancho de su contenido.
+   ========================================================= */
+
+.table-fit .table {
+    width: 100%;
+    font-size: 0.8125rem;
+}
+
+.table-fit .table > :not(caption) > * > *,
+.table-fit .table-scroll-10 > .table > tbody > tr > td,
+.table-fit .table-scroll-10 thead tr:first-child th,
+.table-fit .table-scroll-10 thead tr:nth-child(2) th {
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
+}
+
+.table-fit .table > tbody > tr > td {
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+    overflow-wrap: anywhere;
+}
+
+/* Qompac aplica white-space: nowrap a todas las celdas (thead, tbody, tr, td, th):
+   aquí se permite partir el texto para que la tabla se ajuste al ancho disponible. */
+.table-fit .table tr,
+.table-fit .table td,
+.table-fit .table th {
+    white-space: normal;
+}
+
+/* Los encabezados pueden partirse en dos líneas en lugar de ensanchar la columna. */
+.table-fit .table thead,
+.table-fit .table thead th.text-nowrap {
+    white-space: normal !important;
+}
+
+.table-fit .table .form-control-sm,
+.table-fit .table .form-select-sm {
+    min-width: 0;
+    padding: 0.15rem 0.3rem;
+    font-size: 0.75rem;
+}
+
+/* Columna al ancho mínimo de su contenido (códigos y cantidades). */
+.table-fit .table .col-fit {
+    width: 1%;
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+
+/* =========================================================
    CUERPO DE LA TABLA
    ========================================================= */
 
@@ -173,6 +228,16 @@
     margin-left: 0;
 }
 
+.role-avatar-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bs-primary);
+    color: var(--bs-white);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
 .role-avatar-more {
     display: flex;
     align-items: center;
@@ -238,34 +303,40 @@
    MATRIZ DE PERMISOS QOMPAC
    ========================================================= */
 
-.permission-module-header {
-    width: 190px;
-    min-width: 190px;
+/* Matriz compacta: cabe completa en el modal xl sin desplazamiento horizontal. Qompac aplica
+   un padding amplio a .table, por eso se reduce solo en esta tabla. */
+.permission-table > :not(caption) > * > * {
+    padding: 0.4rem 0.5rem;
 }
 
-/* Todas las acciones tienen el mismo ancho */
+.permission-module-header {
+    width: 13rem;
+    min-width: 11rem;
+}
+
+/* Todas las acciones tienen el mismo ancho; ícono arriba y texto debajo */
 .permission-action-header {
-    width: 120px;
-    min-width: 120px;
-    max-width: 120px;
+    width: 6.25rem;
+    min-width: 5.5rem;
 
     text-align: center;
     vertical-align: middle;
     white-space: normal;
+    line-height: 1.2;
 }
 
 /* Iconos */
 .permission-action-header i {
-    display: inline-block;
+    display: block;
+    margin-bottom: 0.15rem;
     color: var(--bs-primary);
     font-size: 1rem;
-    margin-right: 4px;
-    vertical-align: -1px;
 }
 
 /* Texto */
 .permission-action-header span {
     color: var(--bs-heading-color);
+    font-size: 0.8125rem;
     font-weight: 500;
 }
 
@@ -294,4 +365,910 @@
     width: 1.05rem;
     height: 1.05rem;
     cursor: pointer;
+}
+
+/* =========================================================
+   LISTADOS: BARRA DE ACCIONES, ENCABEZADOS Y PIE
+   Componentes: <x-data-table>, <x-table.actions>, <x-table.head>,
+   <x-table.pagination>, <x-table.per-page>, <x-table.columns-config>.
+   Solo variables de Bootstrap/Qompac para respetar el tema claro/oscuro
+   y el color primario elegido en el customizer.
+   ========================================================= */
+
+.table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.table-toolbar-start {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-toolbar-end {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+/* Barra CRUD: grupos de botones unidos que se envuelven completos en pantallas pequeñas. */
+.table-actions {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-actions-end {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/*
+ * Grupo unido (estilo btn-group): sin espacio entre botones y bordes redondeados solo
+ * en los extremos. Funciona aunque cada botón vaya dentro de su <x-tooltip> (span):
+ * el grupo recorta las esquinas; modales (fixed) y tooltips (en body) no se recortan.
+ */
+.table-actions-group {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    padding-left: 1px;
+    border-radius: var(--bs-border-radius-sm);
+    overflow: hidden;
+}
+
+.table-actions-group .btn:not(.modal .btn) {
+    margin-left: -1px;
+    border-radius: 0;
+}
+
+.table-actions-group .btn:not(.modal .btn):hover,
+.table-actions-group .btn:not(.modal .btn):focus-visible {
+    position: relative;
+    z-index: 1;
+}
+
+/* Alto, alineación y separación uniformes para todos los botones de la barra y el pie. */
+.table-toolbar .btn-sm,
+.table-footer .btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2rem;
+    white-space: nowrap;
+}
+
+/* Botón de solo ícono; la acción se indica con su tooltip y aria-label. */
+.btn-sm.btn-table-icon {
+    width: 2.125rem;
+    padding-left: 0;
+    padding-right: 0;
+    font-size: 0.9375rem;
+}
+
+.table-toolbar .btn:disabled,
+.table-toolbar .btn.disabled {
+    opacity: 0.45;
+}
+
+/* Acciones de estado y datos: en línea en pantallas anchas, en el menú "Más" en las demás. */
+@media (max-width: 1599.98px) {
+    .table-actions .table-actions-wide {
+        display: none !important;
+    }
+}
+
+@media (min-width: 1600px) {
+    .table-actions .table-actions-compact {
+        display: none !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .table-actions-end {
+        margin-left: 0;
+    }
+}
+
+/* Menús desplegables con Alpine (sin Popper): se posicionan respecto a su .dropdown. */
+.table-actions-menu,
+.table-columns-menu {
+    min-width: 15rem;
+    padding: 0.5rem 0;
+    font-size: 0.875rem;
+    box-shadow: var(--bs-box-shadow);
+}
+
+.table-columns-menu {
+    min-width: 17rem;
+    font-size: 0.9375rem;
+}
+
+.table-columns-menu .form-check-input {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.table-actions-menu.show {
+    top: calc(100% + 0.25rem);
+    right: 0;
+    left: auto;
+}
+
+.table-actions-menu .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-actions-menu .dropdown-item:disabled {
+    color: var(--bs-secondary-color);
+    opacity: 0.6;
+}
+
+/* Encabezados ordenables. */
+.table-col-check {
+    width: 2.25rem;
+}
+
+.table-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.table-sort-icon {
+    margin-left: 0.25rem;
+    font-size: 0.7rem;
+    opacity: 0.3;
+}
+
+.table-sortable:hover .table-sort-icon {
+    opacity: 0.7;
+}
+
+.table-sortable.is-sorted {
+    color: var(--bs-primary);
+}
+
+.table-sortable.is-sorted .table-sort-icon {
+    opacity: 1;
+}
+
+/* Pie: controles del listado a la izquierda; resumen y paginación a la derecha. */
+.table-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-top: 0.75rem;
+}
+
+.table-footer-start,
+.table-footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    min-width: 0;
+}
+
+.table-footer-end {
+    margin-left: auto;
+}
+
+.table-footer-count {
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.table-footer .pagination {
+    --bs-pagination-padding-x: 0.625rem;
+    --bs-pagination-padding-y: 0.25rem;
+    --bs-pagination-border-color: var(--bs-border-color);
+    flex-wrap: wrap;
+}
+
+.table-footer .page-link {
+    min-width: 2rem;
+    min-height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.table-per-page {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.table-per-page .form-select {
+    width: auto;
+    min-height: 2rem;
+}
+
+/* Configuración de columnas: abre hacia arriba desde el pie. */
+.table-columns-menu.show {
+    bottom: calc(100% + 0.25rem);
+    left: 0;
+    top: auto;
+}
+
+.table-columns-list {
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.table-columns-list .dropdown-item {
+    cursor: pointer;
+}
+
+.table-columns-badge {
+    position: absolute;
+    top: -0.375rem;
+    right: -0.375rem;
+    min-width: 1rem;
+    height: 1rem;
+    padding: 0 0.25rem;
+    border-radius: 50rem;
+    font-size: 0.625rem;
+    line-height: 1rem;
+    color: var(--bs-white);
+    background-color: var(--bs-primary);
+}
+
+@media (max-width: 575.98px) {
+    .table-footer,
+    .table-footer-end {
+        justify-content: center;
+        margin-left: 0;
+    }
+}
+
+/* =========================================================
+   FORMULARIOS Y MODALES
+   Componentes: <x-modal>, <x-forms.field|input|select|textarea|search-select>,
+   <x-forms.section>, <x-forms.modal-actions>. Solo variables del tema
+   (claro/oscuro y color primario del customizer).
+   ========================================================= */
+
+.app-modal {
+    background-color: rgba(0, 0, 0, 0.55);
+}
+
+.app-modal .modal-content {
+    border: 0;
+    box-shadow: var(--bs-box-shadow-lg, var(--bs-box-shadow));
+}
+
+.app-modal .modal-header {
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.app-modal .modal-body {
+    padding: 1.25rem 1.5rem;
+}
+
+.app-modal .modal-footer {
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    border-top: 1px solid var(--bs-border-color);
+    background-color: var(--bs-tertiary-bg);
+}
+
+.app-modal .modal-footer > * {
+    margin: 0;
+}
+
+.app-modal-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    min-width: 0;
+}
+
+.app-modal-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--bs-border-radius);
+    font-size: 1.2rem;
+    color: var(--bs-primary);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+.app-modal .modal-title {
+    margin-bottom: 0;
+    color: var(--bs-heading-color);
+}
+
+.app-modal-subtitle {
+    margin: 0.125rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+}
+
+.app-modal-submit {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 7rem;
+    justify-content: center;
+}
+
+/* Campos: etiqueta, obligatorio, ayuda y error con la misma apariencia en toda la app. */
+.form-field .form-label {
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--bs-heading-color);
+}
+
+.form-required {
+    margin-left: 0.2rem;
+    color: var(--bs-danger);
+}
+
+.form-field .form-text {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+
+.form-field .invalid-feedback {
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+}
+
+.form-field .form-control:disabled,
+.form-field .form-select:disabled,
+.form-field .form-control[readonly] {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+}
+
+/* Secciones de formularios largos. */
+.form-section + .form-section {
+    margin-top: 1.5rem;
+}
+
+.form-section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    color: var(--bs-primary);
+}
+
+.form-section-title {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bs-primary);
+}
+
+.form-section-description {
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+}
+
+/* Formularios de página (Configuración): botón de guardar alineado con su mensaje. */
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+@media (max-width: 575.98px) {
+    .app-modal .modal-header,
+    .app-modal .modal-body,
+    .app-modal .modal-footer {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .app-modal .modal-footer > .btn {
+        flex: 1 1 auto;
+    }
+}
+
+/* =========================================================
+   DOCUMENTOS CON LÍNEAS
+   Componentes: <x-document.header|section|field|lines|empty-row>.
+   Pantallas de encabezado + detalle (ítems de pendientes y, más adelante,
+   solicitudes y órdenes). Solo variables del tema (claro/oscuro y color
+   primario del customizer).
+   ========================================================= */
+
+.document-header-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.document-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    min-width: 0;
+}
+
+.document-heading-text {
+    min-width: 0;
+}
+
+.document-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: var(--bs-border-radius);
+    font-size: 1.3rem;
+    color: var(--bs-primary);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+.document-title {
+    margin: 0;
+    color: var(--bs-heading-color);
+}
+
+.document-subtitle {
+    margin: 0.125rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+}
+
+.document-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Secciones de datos: columnas que se acomodan solas al ancho disponible. */
+.document-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.document-section {
+    padding: 1rem 1.125rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-tertiary-bg);
+}
+
+.document-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bs-primary);
+}
+
+.document-fields {
+    display: grid;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.document-field {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 35%) 1fr;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.document-field dt {
+    font-weight: 400;
+    color: var(--bs-secondary-color);
+}
+
+.document-field dd {
+    margin: 0;
+    min-width: 0;
+    font-weight: 500;
+    color: var(--bs-heading-color);
+    overflow-wrap: anywhere;
+}
+
+/* Tarjeta de líneas: título con ícono y acciones a la derecha. */
+.document-lines-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.document-lines-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    color: var(--bs-heading-color);
+}
+
+.document-lines-title .bi {
+    color: var(--bs-primary);
+}
+
+/* Panel de captura: se distingue de la tabla y cambia de color al editar una línea. */
+.document-entry {
+    margin-bottom: 1.25rem;
+    padding: 1rem 1.125rem 1.125rem;
+    border: 1px solid var(--bs-border-color);
+    border-left: 3px solid var(--bs-primary);
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-tertiary-bg);
+}
+
+.document-entry-editing {
+    border-left-color: var(--bs-warning);
+    background-color: var(--bs-warning-bg-subtle);
+}
+
+.document-entry-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bs-primary);
+}
+
+.document-entry-editing .document-entry-title {
+    color: var(--bs-warning-text-emphasis);
+}
+
+/* Los botones se alinean con los campos (alto de la etiqueta) en pantallas grandes. */
+.document-entry-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+@media (min-width: 992px) {
+    .document-entry-actions {
+        padding-top: calc(0.875rem * 1.5 + 0.375rem);
+    }
+}
+
+/* Tabla de líneas. */
+.document-lines-table .table {
+    font-size: 0.875rem;
+}
+
+.document-lines-table thead th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.document-lines-table .col-fit {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.document-lines-table tbody tr:hover > td {
+    background-color: var(--bs-tertiary-bg);
+}
+
+.document-lines-table tbody tr.document-line-editing > td {
+    background-color: var(--bs-warning-bg-subtle);
+}
+
+.document-line-product {
+    font-weight: 500;
+    color: var(--bs-heading-color);
+}
+
+.document-line-number {
+    font-variant-numeric: tabular-nums;
+}
+
+.document-lines-table .table-actions-group {
+    vertical-align: middle;
+}
+
+.document-empty {
+    padding: 2.5rem 1rem !important;
+    text-align: center;
+    color: var(--bs-secondary-color);
+}
+
+.document-empty .bi {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+    opacity: 0.6;
+}
+
+.document-empty-text {
+    display: block;
+    font-weight: 500;
+}
+
+.document-empty-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 575.98px) {
+    .document-field {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+}
+
+/* =========================================================
+   GUÍA DE USUARIO
+   Pantalla guide.index: índice por sección (.guide-nav) y tema en
+   Markdown (.guide-article) con capturas (.guide-figure) y notas
+   (.guide-note-*). Solo variables del tema (claro/oscuro).
+   ========================================================= */
+
+.guide-nav {
+    position: sticky;
+    top: 1rem;
+}
+
+.guide-nav-title {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    color: var(--bs-heading-color);
+}
+
+.guide-nav-section {
+    margin: 1rem 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.guide-nav-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.guide-nav-link {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.625rem;
+    border: 0;
+    border-radius: var(--bs-border-radius);
+    background: transparent;
+    font-size: 0.875rem;
+    text-align: start;
+    color: var(--bs-body-color);
+}
+
+.guide-nav-link:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+.guide-nav-link.active {
+    background: var(--bs-primary-bg-subtle);
+    font-weight: 600;
+    color: var(--bs-primary-text-emphasis);
+}
+
+.guide-article {
+    max-width: 60rem;
+    line-height: 1.7;
+}
+
+.guide-article h2 {
+    margin: 2rem 0 0.75rem;
+    padding-bottom: 0.375rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    font-size: 1.25rem;
+}
+
+.guide-article h2:first-child {
+    margin-top: 0;
+}
+
+.guide-article h3 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.05rem;
+}
+
+.guide-article ol,
+.guide-article ul {
+    padding-inline-start: 1.5rem;
+}
+
+.guide-article li + li {
+    margin-top: 0.25rem;
+}
+
+.guide-article table {
+    width: 100%;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.guide-article th,
+.guide-article td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    vertical-align: top;
+}
+
+.guide-article th {
+    background: var(--bs-tertiary-bg);
+}
+
+.guide-article code {
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-body-color);
+}
+
+.guide-figure {
+    margin: 1rem 0 1.5rem;
+}
+
+.guide-figure img {
+    max-width: 100%;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    box-shadow: var(--bs-box-shadow-sm);
+}
+
+.guide-figure figcaption {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+}
+
+.guide-article blockquote {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border-inline-start: 4px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-tertiary-bg);
+}
+
+.guide-article blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+.guide-note-importante {
+    border-inline-start-color: var(--bs-warning) !important;
+    background: var(--bs-warning-bg-subtle) !important;
+}
+
+.guide-note-consejo {
+    border-inline-start-color: var(--bs-primary) !important;
+    background: var(--bs-primary-bg-subtle) !important;
+}
+
+.guide-note-regla {
+    border-inline-start-color: var(--bs-info) !important;
+    background: var(--bs-info-bg-subtle) !important;
+}
+
+.guide-pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+@media (max-width: 991.98px) {
+    .guide-nav {
+        position: static;
+    }
+}
+
+/* =========================================================
+   PROVEEDORES: AÑOS DEL FO-300-01
+   Cajas por año en el detalle del proveedor (.provider-years): una por
+   versión del formato (botón) y las informativas del sistema anterior.
+   ========================================================= */
+
+.provider-years {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.75rem;
+}
+
+.provider-year {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    text-align: start;
+}
+
+button.provider-year:hover {
+    border-color: var(--bs-primary);
+}
+
+.provider-year.active {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    box-shadow: 0 0 0 1px var(--bs-primary);
+}
+
+.provider-year-number {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--bs-heading-color);
+}
+
+.provider-year-meta {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.provider-year-legacy {
+    border-style: dashed;
+    background: var(--bs-tertiary-bg);
 }

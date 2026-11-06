@@ -2,6 +2,7 @@
 
 namespace App\Notifications\Users;
 
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -37,9 +38,9 @@ class TemporaryPasswordAssigned extends Notification
     /**
      * Get the mail representation of the notification.
      */
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(User $notifiable): MailMessage
     {
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject('Acceso creado en '.config('app.name'))
             ->greeting('Hola '.$notifiable->name.',')
             ->line('Se ha creado una cuenta para ti en '.config('app.name').'.')

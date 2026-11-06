@@ -3,6 +3,7 @@
 namespace App\Livewire\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Comportamiento de ordenamiento de tablas (alternar columna/dirección
@@ -31,6 +32,12 @@ trait HasSortableColumns
         $this->resetPage();
     }
 
+    /**
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
     protected function applySort(Builder $query): Builder
     {
         $columns = $this->sortableColumns();
@@ -40,6 +47,10 @@ trait HasSortableColumns
         return $query->orderBy($column, $direction);
     }
 
-    // Cada componente define cuáles de sus columnas son ordenables.
+    /**
+     * Cada componente define cuáles de sus columnas son ordenables.
+     *
+     * @return list<string>
+     */
     abstract protected function sortableColumns(): array;
 }

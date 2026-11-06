@@ -1,0 +1,11 @@
+{
+    "name": "HumanResources",
+    "alias": "humanresources",
+    "description": "Talento Humano: características propias del área (cargos, etc.) y, más adelante, empleados.",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\HumanResources\\Providers\\HumanResourcesServiceProvider"
+    ],
+    "files": []
+}

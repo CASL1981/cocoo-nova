@@ -121,3 +121,50 @@ it('ignora registros ya eliminados al restaurar los que no lo están', function 
 
     expect($active->fresh()->trashed())->toBeFalse(); // no debió fallar ni cambiar nada
 });
+
+it('guarda el NIT del proveedor como opcional y solo numérico', function () {
+    $component = Livewire::actingAs(actingAsAdmin())
+        ->test(ProductFormModal::class)
+        ->call('openCreate')
+        ->set('form.item', 'PRD-NIT')
+        ->set('form.description', 'Producto con proveedor')
+        ->set('form.measure_unit', 'Caja')
+        ->set('form.generic_name', 'Acetaminofén')
+        ->set('form.generic_code', 'GEN-NIT');
+
+    $component->set('form.supplier_nit', '900.123.456-1')
+        ->call('save')
+        ->assertHasErrors(['form.supplier_nit']);
+
+    $component->set('form.supplier_nit', '900123456')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Product::firstWhere('item', 'PRD-NIT')->supplier_nit)->toBe(900123456);
+});
+
+it('permite crear un producto sin NIT del proveedor', function () {
+    Livewire::actingAs(actingAsAdmin())
+        ->test(ProductFormModal::class)
+        ->call('openCreate')
+        ->set('form.item', 'PRD-SIN-NIT')
+        ->set('form.description', 'Producto sin proveedor')
+        ->set('form.measure_unit', 'Caja')
+        ->set('form.generic_name', 'Ibuprofeno')
+        ->set('form.generic_code', 'GEN-SIN-NIT')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Product::firstWhere('item', 'PRD-SIN-NIT')->supplier_nit)->toBeNull();
+});
+
+it('filtra productos por NIT del proveedor', function () {
+    Product::factory()->create(['item' => 'A', 'supplier_nit' => 900123456]);
+    Product::factory()->create(['item' => 'B', 'supplier_nit' => 800555444]);
+
+    $component = Livewire::actingAs(actingAsAdmin())
+        ->test('shopping::pages.product-index')
+        ->set('filterSupplierNit', '900123');
+
+    expect($component->instance()->products->pluck('item')->all())->toBe(['A']);
+});

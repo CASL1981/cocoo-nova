@@ -43,7 +43,7 @@
 
     @livewireScriptConfig
 
-    //components toasts para los mensajes de alerta
+    {{-- Componente de toasts para los mensajes de alerta --}}
     <x-toast-container />
     <livewire:audit.userstamps-modal />
 </body>

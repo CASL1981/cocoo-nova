@@ -12,11 +12,36 @@ class ProductPolicy
 
     protected string $module = 'products';
 
-    public function viewAny(User $actor): bool { return $this->can($actor, 'read'); }
-    public function view(User $actor, Product $product): bool { return $this->can($actor, 'read'); }
-    public function create(User $actor): bool { return $this->can($actor, 'create'); }
-    public function update(User $actor, Product $product): bool { return $this->can($actor, 'update'); }
-    public function delete(User $actor, Product $product): bool { return $this->can($actor, 'delete'); }
+    public function viewAny(User $actor): bool
+    {
+        return $this->can($actor, 'read');
+    }
+
+    public function view(User $actor, Product $product): bool
+    {
+        return $this->can($actor, 'read');
+    }
+
+    public function create(User $actor): bool
+    {
+        return $this->can($actor, 'create');
+    }
+
+    /** Duplicar un registro exige el mismo permiso de crear. */
+    public function duplicate(User $actor, Product $product): bool
+    {
+        return $this->can($actor, 'create');
+    }
+
+    public function update(User $actor, Product $product): bool
+    {
+        return $this->can($actor, 'update');
+    }
+
+    public function delete(User $actor, Product $product): bool
+    {
+        return $this->can($actor, 'delete');
+    }
 
     public function toggle(User $actor, Product $product): bool
     {
@@ -26,5 +51,11 @@ class ProductPolicy
     public function restore(User $actor, Product $product): bool
     {
         return $this->can($actor, 'reverse');
+    }
+
+    /** Importación masiva desde Excel/CSV (crea y actualiza productos). */
+    public function import(User $actor): bool
+    {
+        return $this->can($actor, 'import');
     }
 }

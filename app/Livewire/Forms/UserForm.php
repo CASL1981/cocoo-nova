@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Form;
+use Modules\HumanResources\App\Models\HrCharacteristic;
+use Modules\HumanResources\App\Models\HrCharacteristicOption;
 
 class UserForm extends Form
 {
@@ -22,6 +24,9 @@ class UserForm extends Form
     public string $lastname = '';
 
     public string $process_id = '';
+
+    // Cargo (Talento Humano → Cargos): se muestra en las firmas y define quién verifica proveedores.
+    public string $position_id = '';
 
     // Habilita al usuario para hacer requisiciones de aseo, papelería y cafetería ('1' o '0').
     public string $can_request_supplies = '0';
@@ -59,6 +64,8 @@ class UserForm extends Form
             // Quien solicita suministros necesita proceso (define quién aprueba) y sede (su C.U.).
             'process_id' => ['nullable', 'required_if:can_request_supplies,1', 'integer',
                 Rule::exists('processes', 'id')->whereNull('deleted_at')],
+            'position_id' => ['nullable', 'integer', Rule::exists(HrCharacteristicOption::class, 'id')->whereNull('deleted_at')
+                ->whereIn('hr_characteristic_id', HrCharacteristic::query()->where('code', HrCharacteristic::POSITIONS_CODE)->pluck('id')->all())],
             'can_request_supplies' => ['required', 'boolean'],
             'email' => ['required', 'email:rfc', 'max:255', Rule::unique('users', 'email')->ignore($this->user)],
             'status' => ['required', Rule::enum(UserStatus::class)],
@@ -72,7 +79,7 @@ class UserForm extends Form
     {
         $this->user = $user;
 
-        foreach (['identification', 'name', 'lastname', 'process_id', 'role_id', 'email', 'service_point_id'] as $field) {
+        foreach (['identification', 'name', 'lastname', 'process_id', 'position_id', 'role_id', 'email', 'service_point_id'] as $field) {
             $this->{$field} = (string) ($user->{$field} ?? '');
         }
 

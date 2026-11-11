@@ -17,9 +17,10 @@ use App\Support\ProviderApprovalRules;
  * Autorización de proveedores por proceso (líneas administrative-providers y commercial-providers).
  *
  * Cada vinculación se autoriza con la línea de permisos de su tipo, así un proceso no gestiona
- * los proveedores del otro. Las firmas de aprobación no dependen de permisos sino del cargo:
- * director del proceso (o Gerencia si es PEP) y oficial de cumplimiento; también necesitan
- * "read" para entrar a la pantalla.
+ * los proveedores del otro. La verificación exige el permiso de procesar y, si están configurados,
+ * uno de los cargos verificadores. Las firmas de aprobación no dependen de permisos: director del
+ * proceso (siempre), oficial de cumplimiento (PEP) y Gerencia si aprueba en el sistema; también
+ * necesitan "read" para entrar a la pantalla.
  */
 final class ProviderLinkagePolicy
 {
@@ -109,10 +110,38 @@ final class ProviderLinkagePolicy
     }
 
     /** Firma de verificación y rechazo en verificación. */
+    /** Verificar: permiso de procesar y, si están configurados, uno de los cargos verificadores del tipo. */
     public function verify(User $actor, ProviderLinkage $linkage): bool
     {
-        return $this->allows($actor, $linkage->scope, 'process')
+        return $this->canVerify($actor, $linkage)
             && $this->openVersion($linkage)?->status === ProviderVersionStatus::Verification;
+    }
+
+    /** Observación del oficial de cumplimiento a un proveedor no PEP en revisión. */
+    public function addComplianceObservation(User $actor, ProviderLinkage $linkage): bool
+    {
+        $version = $this->openVersion($linkage);
+
+        return $version !== null && ! $version->is_pep
+            && in_array($version->status, [ProviderVersionStatus::Verification, ProviderVersionStatus::Approval], true)
+            && $this->rules->isComplianceOfficer($actor);
+    }
+
+    /** Aprobación de Gerencia en el sistema (PEP con el modo "en el sistema"). */
+    public function approveAsManagement(User $actor, ProviderLinkage $linkage): bool
+    {
+        $version = $this->openVersion($linkage);
+
+        return $version !== null && $this->rules->canApproveAsManagement($version, $actor);
+    }
+
+    /** Registrar la firma física de Gerencia: quien tenga el permiso de procesar el tipo. */
+    public function registerManagementApproval(User $actor, ProviderLinkage $linkage): bool
+    {
+        $version = $this->signedVersion($linkage);
+
+        return $version !== null && $this->allows($actor, $linkage->scope, 'process')
+            && $this->rules->acceptsPhysicalManagementApproval($version);
     }
 
     /** Visto bueno del oficial de cumplimiento (proveedor PEP). */
@@ -140,9 +169,10 @@ final class ProviderLinkagePolicy
         $version = $this->reviewVersion($linkage);
 
         return match ($version?->status) {
-            ProviderVersionStatus::Verification => $this->allows($actor, $linkage->scope, 'process'),
+            ProviderVersionStatus::Verification => $this->canVerify($actor, $linkage),
             ProviderVersionStatus::Compliance => $this->rules->isComplianceOfficer($actor),
-            ProviderVersionStatus::Approval, ProviderVersionStatus::Approved => $this->rules->scopesApprovableBy($version, $actor) !== [],
+            ProviderVersionStatus::Approval => $this->rules->scopesApprovableBy($version, $actor) !== [] || $this->rules->canApproveAsManagement($version, $actor),
+            ProviderVersionStatus::Approved => $this->rules->scopesApprovableBy($version, $actor) !== [],
             default => false,
         };
     }
@@ -191,6 +221,19 @@ final class ProviderLinkagePolicy
     private function allows(User $actor, ProviderScope $scope, string $action): bool
     {
         return $actor->hasPermissionTo(PermissionCatalog::permissionName($scope->module(), $action));
+    }
+
+    private function canVerify(User $actor, ProviderLinkage $linkage): bool
+    {
+        return $this->allows($actor, $linkage->scope, 'process') && $this->rules->canVerifyByPosition($actor, $linkage->scope);
+    }
+
+    /** Versión en trámite o, si no hay, la vigente (la firma física de Gerencia puede llegar después). */
+    private function signedVersion(ProviderLinkage $linkage): ?ProviderVersion
+    {
+        $provider = $linkage->loadMissing(['provider.openVersion', 'provider.currentVersion'])->provider;
+
+        return $provider->openVersion ?? $provider->currentVersion;
     }
 
     private function openVersion(ProviderLinkage $linkage): ?ProviderVersion

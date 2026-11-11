@@ -6,6 +6,7 @@
 @props([
     'text',               // Texto que describe la operación del botón.
     'placement' => 'top', // top, bottom, left o right.
+    'wide' => false,      // Textos largos (párrafos): tooltip más ancho y alineado a la izquierda.
 ])
 
-<span {{ $attributes->class('d-inline-block') }} x-data x-tooltip.{{ $placement }}="@js($text)">{{ $slot }}</span>
+<span {{ $attributes->class('d-inline-block') }} x-data x-tooltip.{{ $placement }}{{ $wide ? '.wide' : '' }}="@js($text)">{{ $slot }}</span>

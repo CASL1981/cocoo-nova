@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Providers\ProviderWorkflow;
+use App\Enums\ProviderFormStatus;
 use App\Enums\ProviderLinkageStatus;
 use App\Enums\ProviderScope;
 use App\Enums\ProviderVersionStatus;
@@ -151,4 +152,35 @@ it('ordena el listado por la situación del FO-300-01', function (): void {
 
     $component->call('sort', 'open_version');
     expect($component->get('linkages')->pluck('provider_id')->all())->toBe([$current->provider_id, $basic->provider_id]);
+});
+
+it('filtra el listado por la situación del FO-300-01', function (): void {
+    $administrative = fn (int $providerId) => ProviderLinkage::factory()->scope(ProviderScope::Administrative)->active()
+        ->create(['provider_id' => $providerId]);
+
+    $basic = ProviderLinkage::factory()->scope(ProviderScope::Administrative)->active()->create();
+    $basic->provider->update(['current_version_id' => null, 'next_update_on' => null]);
+    $inProgress = ProviderVersion::factory()->status(ProviderVersionStatus::Verification)->create();
+    $administrative($inProgress->provider_id);
+    $current = ProviderVersion::factory()->approved()->create();
+    $administrative($current->provider_id);
+    $expired = ProviderVersion::factory()->approved()->create();
+    $administrative($expired->provider_id);
+    $expired->provider->update(['next_update_on' => today()]);
+
+    $component = Livewire::actingAs(userWith(['administrative-providers-read']))
+        ->test('administrative::pages.administrative-provider-index');
+
+    foreach ([
+        ProviderFormStatus::None->value => $basic->provider_id,
+        ProviderFormStatus::InProgress->value => $inProgress->provider_id,
+        ProviderFormStatus::Current->value => $current->provider_id,
+        ProviderFormStatus::Expired->value => $expired->provider_id,
+    ] as $status => $providerId) {
+        expect($component->set('filterFormStatus', $status)->get('linkages')->pluck('provider_id')->all())
+            ->toBe([$providerId]);
+    }
+
+    // Un valor fuera del enum no filtra.
+    expect($component->set('filterFormStatus', 'otro')->get('linkages'))->toHaveCount(4);
 });

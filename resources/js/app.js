@@ -195,14 +195,93 @@ document.addEventListener('livewire:navigated', () => {
     }
 });
 
-// Tooltip Bootstrap declarativo: x-tooltip="'Texto'" (ubicación opcional: x-tooltip.bottom).
+// Campo en pesos colombianos (<x-forms.money>): "value" es el número que recibe Livewire
+// (1234567.89, enlazado con x-modelable) y "display" lo que ve el usuario (1.234.567,89).
+Alpine.data('moneyInput', ({ negative = false } = {}) => ({
+    value: null,
+    display: '',
+
+    init() {
+        this.display = this.format(this.value);
+
+        // Valor que llega del servidor (al abrir o reiniciar el formulario): se vuelve a formatear,
+        // salvo que ya coincida con lo escrito (evita mover lo que el usuario está tecleando).
+        this.$watch('value', (value) => {
+            if (this.normalize(this.parse(this.display)) !== this.normalize(value)) {
+                this.display = this.format(value);
+            }
+        });
+    },
+
+    // "45000000.00" → "45000000": sin ceros decimales sobrantes, para comparar y mostrar.
+    normalize(value) {
+        if (value === null || value === undefined || value === '') {
+            return null;
+        }
+
+        const [integer, decimals = ''] = String(value).split('.');
+        const trimmed = decimals.replace(/0+$/, '');
+
+        return trimmed ? `${integer}.${trimmed}` : integer;
+    },
+
+    // Texto del usuario ("-1.234.567,5") → número sin formato ("-1234567.5"), o null si está vacío.
+    parse(text) {
+        const sign = negative && String(text).trim().startsWith('-') ? '-' : '';
+        const [integer, ...rest] = String(text).replace(/[^\d,]/g, '').split(',');
+        const digits = integer.replace(/^0+(?=\d)/, '');
+        const decimals = rest.join('').slice(0, 2);
+
+        if (digits === '' && decimals === '') {
+            return null;
+        }
+
+        return `${sign}${digits || '0'}${decimals ? `.${decimals}` : ''}`;
+    },
+
+    // Número → "1.234.567,5" (punto de miles y coma decimal, formato colombiano).
+    format(value) {
+        const normalized = this.normalize(value);
+
+        if (normalized === null) {
+            return '';
+        }
+
+        const sign = normalized.startsWith('-') ? '-' : '';
+        const [integer, decimals] = normalized.replace('-', '').split('.');
+
+        return `${sign}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}${decimals ? `,${decimals}` : ''}`;
+    },
+
+    // Al escribir: actualiza el número y reformatea conservando la coma y los decimales tecleados.
+    sync(event) {
+        const text = this.display;
+        const raw = this.parse(text);
+        const comma = text.indexOf(',');
+        let formatted = raw === null ? '' : this.format(raw.split('.')[0]);
+
+        if (comma !== -1) {
+            formatted = `${formatted || '0'},${text.slice(comma + 1).replace(/\D/g, '').slice(0, 2)}`;
+        } else if (raw === null && negative && text.trim() === '-') {
+            formatted = '-';
+        }
+
+        this.value = raw;
+        this.display = formatted;
+        this.$nextTick(() => event.target.setSelectionRange(formatted.length, formatted.length));
+    },
+}));
+
+// Tooltip Bootstrap declarativo: x-tooltip="'Texto'" (ubicación opcional: x-tooltip.bottom;
+// x-tooltip.wide para párrafos largos, ver .tooltip-wide en app.css).
 // Se crea y destruye con el elemento, así no quedan tooltips huérfanos tras los re-renderizados
 // de Livewire. Uso habitual a través del componente Blade <x-tooltip>.
 Alpine.directive('tooltip', (el, { modifiers, expression }, { evaluate, cleanup }) => {
     const tooltip = new bootstrap.Tooltip(el, {
         title: evaluate(expression),
-        placement: modifiers[0] ?? 'top',
-        trigger: 'hover',
+        placement: modifiers.find((modifier) => ['top', 'bottom', 'left', 'right'].includes(modifier)) ?? 'top',
+        trigger: modifiers.includes('wide') ? 'hover focus' : 'hover',
+        customClass: modifiers.includes('wide') ? 'tooltip-wide' : '',
     });
 
     // Al abrir un modal o una confirmación el puntero no sale del botón: se oculta al hacer clic.

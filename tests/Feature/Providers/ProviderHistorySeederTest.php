@@ -12,6 +12,7 @@ use App\Models\ProviderLinkage;
 use App\Models\ProviderVersion;
 use Database\Seeders\ProviderHistorySeeder;
 use Database\Seeders\ReferenceCatalogSeeder;
+use Livewire\Livewire;
 
 beforeEach(function (): void {
     $this->seed(ReferenceCatalogSeeder::class);
@@ -62,4 +63,21 @@ it('no duplica los años ya cargados al ejecutarse de nuevo', function (): void 
     expect(ProviderVersion::count())->toBe($versions)
         ->and(Provider::count())->toBe($providers)
         ->and($versions)->toBeGreaterThan(100);
+});
+
+it('muestra de entrada el último año cargado de un proveedor básico', function (): void {
+    $this->seed(ProviderHistorySeeder::class);
+    $provider = Provider::with(['linkages', 'versions'])->where('identification', '900808189')->firstOrFail();
+
+    Livewire::actingAs(actingAsAdmin())
+        ->test('administrative::pages.administrative-provider-show', ['linkage' => $provider->linkages->first()])
+        ->assertSet('selectedVersionId', $provider->versions->sortByDesc('number')->first()->id)
+        ->assertSee('Años del FO-300-01')
+        ->assertSee('no está vigente')
+        ->assertSee('Sin registro en el sistema (formato físico)');
+
+    Livewire::actingAs(actingAsAdmin())
+        ->test('administrative::pages.administrative-provider-index')
+        ->set('filterIdentification', '900808189')
+        ->assertSee('Último 2025');
 });

@@ -8,10 +8,10 @@
  * falla: es la señal para revisar el tema de la guía correspondiente.
  */
 
+use App\Actions\Providers\ProviderWorkflow;
 use App\Enums\IdentityDocumentType;
 use App\Enums\PersonType;
 use App\Enums\ProviderContactRole;
-use App\Enums\ProviderDocumentType;
 use App\Enums\ProviderLinkageStatus;
 use App\Enums\ProviderRequestType;
 use App\Enums\ProviderScope;
@@ -24,11 +24,14 @@ use App\Models\Provider;
 use App\Models\ProviderLegacyUpdate;
 use App\Models\ProviderLinkage;
 use App\Models\ProviderVersion;
+use App\Models\ProviderVersionDocument;
 use App\Models\User;
 use App\Settings\CompanySettings;
 use Database\Seeders\CharacteristicOptionSeeder;
 use Database\Seeders\ProcessSeeder;
 use Illuminate\Support\Str;
+use Modules\HumanResources\App\Models\HrCharacteristicOption;
+use Modules\HumanResources\Database\Seeders\PositionSeeder;
 
 /**
  * Catálogos mínimos para los formularios: dos departamentos, sus municipios, Colombia y dos CIIU.
@@ -89,7 +92,7 @@ function providersGuideWithForm(array $catalogs, array $provider, ProviderVersio
         'submitted_at' => $status === ProviderVersionStatus::Draft ? null : now()->subDays(2),
         ...($model->person_type === PersonType::Legal ? [
             'tax_regime' => 'Responsable de IVA',
-            'company_type' => 'private',
+            'company_type' => 'Privada',
             'legal_representative_name' => 'CAMILO ANDRÉS TORRES VEGA',
             'legal_representative_document_type' => IdentityDocumentType::CitizenshipCard,
             'legal_representative_identification' => '10777888',
@@ -299,14 +302,12 @@ it('genera las capturas del proveedor básico', function (): void {
         'address' => $historical->provider->address,
     ]);
     $page = providersGuideVisit('/administrative/providers/'.$historical->id, 1440, 1000);
-    providersGuideClick($page, '.document-header button:has(.bi-calendar3)', 0.8);
-    $page->assertSee('Tiene formatos de años anteriores');
+    $page->assertSee('no está vigente');
     guideShot($page, 'providers-basic/08-historical-years', [
         ['.document-header button[wire\:click^="$dispatch"]', '1'],
         ['.document-header button.btn-primary', '2'],
-        ['.document-header button:has(.bi-calendar3)', '3'],
-        ['.provider-years-card', '4'],
-        ['.alert-info:has(.bi-info-circle)', '5'],
+        ['.provider-years-card', '3'],
+        ['.alert-info:has(.bi-eye)', '4'],
     ]);
 });
 
@@ -316,10 +317,10 @@ it('genera las capturas del diligenciamiento del FO-300-01', function (): void {
     $linkage = providersGuideWithForm($catalogs, ['identification' => '901555666', 'name' => 'ASEO Y DOTACIONES DEL SINÚ S.A.S.'],
         ProviderVersionStatus::Draft, version: ['accepts_risk_bureau' => true]);
     $version = $linkage->provider->versions()->firstOrFail();
-    $version->contacts()->create(['role' => ProviderContactRole::SalesRepresentative, 'name' => 'DIANA PATRICIA OSORIO', 'phone' => '3008765432', 'email' => 'dosorio@aseosinu.test']);
+    $version->contacts()->create(['role' => ProviderContactRole::SalesRepresentative, 'name' => 'DIANA PATRICIA OSORIO', 'job_title' => 'ASESORA COMERCIAL', 'phone' => '3008765432', 'email' => 'dosorio@aseosinu.test']);
     $version->shareholders()->create(['document_type' => IdentityDocumentType::CitizenshipCard, 'identification' => '10777888',
         'name' => 'CAMILO ANDRÉS TORRES VEGA', 'ownership_percentage' => 60]);
-    $version->documents()->create(['type' => ProviderDocumentType::Rut, 'path' => 'providers/guide/rut.pdf',
+    $version->documents()->create(['type' => 'Registro único tributario (RUT)', 'path' => 'providers/guide/rut.pdf',
         'original_name' => 'RUT ASEO Y DOTACIONES.pdf', 'uploaded_by' => $admin->id]);
     $this->actingAs($admin);
     $url = '/administrative/providers/'.$linkage->id;
@@ -352,10 +353,25 @@ it('genera las capturas del diligenciamiento del FO-300-01', function (): void {
         ['#provider-pep-relationship', '3'],
     ], '.app-modal.show .modal-content');
 
+    // "Tiene relación con un PEP": aparecen los datos de esa persona PEP (luego se desmarca).
+    providersGuideClick($page, '#provider-pep-relationship', 1.2);
+    providersGuideScrollTo($page, '#provider-declares-pep');
+    guideShot($page, 'providers-form/10-pep-relationship', [
+        ['#provider-pep-relationship', '1'],
+        ['#provider-pep-relation-name', '2'],
+        ['#provider-pep-relation-id', '2'],
+        ['#provider-pep-relation-relationship', '2'],
+        ['#provider-pep-relation-office', '3'],
+        ['#provider-pep-relation-starts', '3'],
+        ['#provider-pep-relation-ends', '3'],
+    ], '.app-modal.show .modal-content');
+    providersGuideClick($page, '#provider-pep-relationship', 1.2);
+
     // 4. Contactos y declaraciones obligatorias.
     providersGuideScrollTo($page, '#provider-contact-sales_manager-name');
     guideShot($page, 'providers-form/04-form-contacts-declarations', [
         ['#provider-contact-sales_representative-name', '1'],
+        ['#provider-contact-sales_representative-job-title', '1'],
         ['#provider-truthfulness', '2'],
         ['#provider-data-processing', '2'],
         ['#provider-information-received', '2'],
@@ -363,22 +379,44 @@ it('genera las capturas del diligenciamiento del FO-300-01', function (): void {
         ['.app-modal.show .app-modal-submit', '3'],
     ], '.app-modal.show .modal-content');
 
+    // Campo en pesos: se ve con formato colombiano y Livewire guarda el número sin formato.
+    $page->type('#provider-other-income', '1234567,5');
+    expect($page->script("document.querySelector('#provider-other-income').value"))->toBe('1.234.567,5');
+    $page->type('#provider-other-income-activity', 'Arriendos');
+    providersGuideClick($page, '.app-modal.show .app-modal-submit', 2);
+    expect((float) $version->fresh()->other_income)->toBe(1234567.5);
+
     // 5. Accionistas, familiares PEP y anexos en el detalle.
     $page = providersGuideVisit($url, 1440, 1000);
+
+    // Texto completo de una declaración al pasar el mouse (o enfocar) su ícono.
+    $page->script("document.querySelector('.provider-declaration:nth-child(4) .provider-declaration-info').focus()");
+    $page->wait(0.8);
+    guideShot($page, 'providers-form/09-declaration-detail', [
+        ['.provider-declaration:nth-child(4) .provider-declaration-info', '1'],
+    ], '.card:has(.provider-declaration) .card-body');
+    $page->script('document.activeElement.blur()');
+    $page->wait(0.3);
+    // Accionista con NIT: aparecen el representante legal y su cédula.
+    $page->select('#shareholder-type', 'NIT');
+    $page->wait(1);
     guideShot($page, 'providers-form/05-shareholders', [
-        ['#shareholder-pct', '1'],
-        ['form[wire\\:submit="addShareholder"] button[type="submit"]', '2'],
+        ['#shareholder-type', '1'],
+        ['#shareholder-pct', '2'],
+        ['#shareholder-rep', '3'],
+        ['#shareholder-rep-id', '3'],
+        ['form[wire\\:submit="addShareholder"] button[type="submit"]', '4'],
     ], '.document-lines:has(#shareholder-pct)');
 
-    $page->script("document.querySelector('#relative-is-pep').click()");
-    $page->wait(1);
     guideShot($page, 'providers-form/06-pep-relatives', [
+        ['#relative-type', '1'],
+        ['#relative-id', '1'],
+        ['#relative-name', '1'],
         ['#relative-relationship', '1'],
-        ['#relative-is-pep', '2'],
-        ['#relative-office', '3'],
+        ['form[wire\\:submit="addRelative"] button[type="submit"]', '2'],
     ], '.document-lines:has(#relative-name)');
 
-    $page->select('#document-type', ProviderDocumentType::ChamberOfCommerce->value);
+    $page->select('#document-type', ProviderVersionDocument::CHAMBER_OF_COMMERCE_TYPE);
     $page->wait(1);
     guideShot($page, 'providers-form/07-documents', [
         ['#document-type', '1'],
@@ -398,17 +436,21 @@ it('genera las capturas de la verificación y aprobación', function (): void {
     $catalogs = providersGuideCatalogs();
     $admin = providersGuideAdmin();
     $other = User::factory()->create(['name' => 'SANDRA MILENA', 'lastname' => 'RÍOS CANO']);
+    test()->seed(PositionSeeder::class);
+    $other->update(['position_id' => HrCharacteristicOption::where('name', 'Auxiliar Administrativo')->value('id')]);
+    $admin->update(['position_id' => HrCharacteristicOption::where('name', 'Director Administrativo')->value('id')]);
+    $signed = ['submitted_position' => 'Auxiliar Administrativo', 'verified_position' => 'Auxiliar Administrativo'];
 
     $inVerification = providersGuideWithForm($catalogs, ['identification' => '900222333', 'name' => 'PAPELERÍA Y TINTAS DEL CARIBE S.A.S.'],
         ProviderVersionStatus::Verification, version: ['submitted_by' => $other->id]);
 
     $inCompliance = providersGuideWithForm($catalogs, ['identification' => '900321654', 'name' => 'SUMINISTROS DE OFICINA LA 41 S.A.S.', 'risk_level' => RiskLevel::High, 'is_pep' => true],
         ProviderVersionStatus::Compliance, version: ['declares_pep' => true, 'public_office' => 'Concejal municipal', 'pep_starts_on' => '2024-01-01',
-            'is_pep' => true, 'risk_level' => RiskLevel::High, 'submitted_by' => $other->id, 'verified_by' => $other->id, 'verified_at' => now()->subDay()]);
+            'is_pep' => true, 'risk_level' => RiskLevel::High, 'submitted_by' => $other->id, 'verified_by' => $other->id, 'verified_at' => now()->subDay(), ...$signed]);
 
     $inApproval = providersGuideWithForm($catalogs, ['identification' => '900444555', 'name' => 'COMERCIALIZADORA DE INSUMOS MONTERÍA S.A.S.'],
         ProviderVersionStatus::Approval, version: ['submitted_by' => $other->id, 'verified_by' => $other->id, 'verified_at' => now()->subDay(),
-            'verification_observations' => 'RUT y cámara de comercio verificados.']);
+            'verification_observations' => 'RUT y cámara de comercio verificados.', ...$signed]);
     ProviderLinkage::factory()->scope(ProviderScope::Commercial)->create(['provider_id' => $inApproval->provider_id]);
 
     $rejected = providersGuideWithForm($catalogs, ['identification' => '900888777', 'name' => 'IMPRESOS LA PLAZA S.A.S.'],
@@ -432,6 +474,28 @@ it('genera las capturas de la verificación y aprobación', function (): void {
         ['.card:has(.bi-pen) button.btn-outline-danger', '3'],
         ['.card:has(.bi-pen) button.btn-outline-secondary', '4'],
     ], '.card:has(.bi-pen)');
+
+    // 1b. Firma física de Gerencia de un PEP ya aprobado por el director.
+    $pep = providersGuideWithForm($catalogs, ['identification' => '900765432', 'name' => 'DOTACIONES Y UNIFORMES DEL SINÚ S.A.S.', 'risk_level' => RiskLevel::High, 'is_pep' => true],
+        ProviderVersionStatus::Approval, version: ['declares_pep' => true, 'public_office' => 'Edil', 'pep_starts_on' => '2024-01-01',
+            'is_pep' => true, 'risk_level' => RiskLevel::High, 'submitted_by' => $other->id, 'verified_by' => $other->id, 'verified_at' => now()->subDays(3),
+            'compliance_by' => $admin->id, 'compliance_at' => now()->subDays(2), 'compliance_position' => 'Director Administrativo',
+            'compliance_observations' => 'Sin reportes en listas restrictivas.', ...$signed]);
+    app(ProviderWorkflow::class)->approve($pep->provider->versions()->firstOrFail(), $admin->refresh(), 'Aprobado.');
+
+    $page = providersGuideVisit('/administrative/providers/'.$pep->id, 1440, 1000);
+    $page->assertSee('Registrar firma de Gerencia');
+    guideShot($page, 'providers-review/11-management', [
+        ['.card:has(.bi-pen) .list-group-item:nth-child(2)', '1'],
+        ['.card:has(.bi-pen) .list-group-item:nth-child(4)', '2'],
+        ['.card:has(.bi-pen) .list-group-item:nth-child(5)', '3'],
+        ['button[wire\:click="openManagementApproval"]', '4'],
+    ], '.card:has(.bi-pen)');
+
+    providersGuideClick($page, 'button[wire\:click="openManagementApproval"]');
+    guideShot($page, 'providers-review/12-management-form', [
+        ['#management-signed-on', '1'], ['#management-notes', '2'],
+    ], '.app-modal.show .modal-content');
 
     // 2. Oficial de cumplimiento (PEP).
     $page = providersGuideVisit('/administrative/providers/'.$inCompliance->id, 1440, 1000);

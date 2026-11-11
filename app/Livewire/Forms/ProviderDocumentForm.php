@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Livewire\Forms;
 
-use App\Enums\ProviderDocumentType;
 use App\Livewire\Concerns\SanitizesPayload;
+use App\Models\CharacteristicOption;
+use App\Models\ProviderVersionDocument;
 use Illuminate\Validation\Rule;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\Form;
@@ -29,12 +30,11 @@ final class ProviderDocumentForm extends Form
     /** @return array<string, array<int, mixed>> */
     protected function rules(): array
     {
-        $type = ProviderDocumentType::tryFrom($this->type);
-
         return [
-            'type' => ['required', Rule::enum(ProviderDocumentType::class)],
+            // Tipos activos de la característica de anexos (Utilidades → Características).
+            'type' => ['required', 'string', Rule::in(CharacteristicOption::forCharacteristicCode(ProviderVersionDocument::TYPE_CHARACTERISTIC_CODE)->keys()->all())],
             // La cámara de comercio exige fecha de expedición para controlar su vigencia de 3 meses.
-            'issued_on' => [$type?->requiresIssueDate() ? 'required' : 'nullable', 'date', 'before_or_equal:today'],
+            'issued_on' => [ProviderVersionDocument::requiresIssueDate($this->type) ? 'required' : 'nullable', 'date', 'before_or_equal:today'],
             'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:'.self::MAX_SIZE_KB],
         ];
     }

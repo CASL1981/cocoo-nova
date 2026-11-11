@@ -29,7 +29,7 @@ final class SaveProviderVersion
 {
     /**
      * @param  array<string, mixed>  $data  Campos de ProviderVersion::FORM_FIELDS ya validados.
-     * @param  array<string, array{name: ?string, phone: ?string, email: ?string}>  $contacts  Por valor de ProviderContactRole.
+     * @param  array<string, array{name: ?string, job_title: ?string, phone: ?string, email: ?string}>  $contacts  Por valor de ProviderContactRole.
      */
     public function execute(array $data, array $contacts, ProviderScope $scope, ?ProviderVersion $version = null): ProviderVersion
     {
@@ -154,7 +154,7 @@ final class SaveProviderVersion
         $cleared = $personType === PersonType::Natural ? ProviderVersion::LEGAL_FIELDS : ProviderVersion::NATURAL_FIELDS;
 
         foreach ($cleared as $field) {
-            $data[$field] = in_array($field, ['has_foreign_accounts', 'accepts_electronic_means', 'in_insolvency'], true) ? false : null;
+            $data[$field] = in_array($field, ['accepts_electronic_means', 'in_insolvency'], true) ? false : null;
         }
 
         if (empty($data['declares_pep']) && empty($data['manages_public_resources'])) {
@@ -165,13 +165,20 @@ final class SaveProviderVersion
             $data['foreign_currency_detail'] = null;
         }
 
+        if (empty($data['has_pep_relationship'])) {
+            foreach (ProviderVersion::PEP_RELATION_FIELDS as $field) {
+                $data[$field] = null;
+            }
+        }
+
         return $data;
     }
 
     /**
-     * Reemplaza los contactos por cargo; un cargo sin ningún dato no se guarda.
+     * Reemplaza los contactos por rol fijo del formato; un rol sin nombre, teléfono ni correo no se
+     * guarda (el cargo solo no basta).
      *
-     * @param  array<string, array{name: ?string, phone: ?string, email: ?string}>  $contacts
+     * @param  array<string, array{name: ?string, job_title: ?string, phone: ?string, email: ?string}>  $contacts
      */
     private function syncContacts(ProviderVersion $version, array $contacts): void
     {
@@ -180,7 +187,7 @@ final class SaveProviderVersion
         foreach (ProviderContactRole::cases() as $role) {
             $contact = array_filter($contacts[$role->value] ?? [], fn ($value) => $value !== null && $value !== '');
 
-            if ($contact !== []) {
+            if (array_diff_key($contact, ['job_title' => true]) !== []) {
                 $version->contacts()->create(['role' => $role, ...$contact]);
             }
         }

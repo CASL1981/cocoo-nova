@@ -16,9 +16,9 @@ Desde En verificación, Cumplimiento o En aprobación:
 | Estado | Qué está pasando | Quién actúa |
 |---|---|---|
 | **Borrador** | Se diligencia el formato. | Quien tiene permiso de editar. |
-| **En verificación** | Se revisa que los datos coincidan con los soportes. | Quien tiene permiso de procesar. |
+| **En verificación** | Se revisa que los datos coincidan con los soportes. | Quien tiene permiso de procesar y uno de los cargos verificadores. |
 | **Cumplimiento** | Solo proveedores PEP: revisión del oficial de cumplimiento. | El oficial de cumplimiento. |
-| **En aprobación** | Firma de cada proceso vinculado. | El director del proceso o su reemplazo; Gerencia si es PEP. |
+| **En aprobación** | Firma de cada proceso vinculado. | El director del proceso o su reemplazo, también si es PEP. |
 | **Aprobada** | Es la versión vigente del proveedor. | Nadie: ya no se modifica. |
 | **Rechazada** | El formato no se aceptó. | Quien tiene permiso de reversar la corrige con **Corregir FO-300-01**. |
 
@@ -27,14 +27,21 @@ Desde En verificación, Cumplimiento o En aprobación:
 | Acción | Botón | Quién |
 |---|---|---|
 | Enviar | **Enviar a verificación** | Quien tiene el permiso de **editar** proveedores del proceso. |
-| Verificar | **Verificar** | Quien tiene el permiso de **procesar** proveedores del proceso. |
-| Visto bueno de cumplimiento | **Visto bueno de cumplimiento** | El usuario configurado como oficial de cumplimiento en Datos de la empresa. |
-| Aprobar | **Aprobar** | El director del proceso Administrativo o Comercial, según la vinculación, o su reemplazo vigente. Si el proveedor es PEP, el director de **Gerencia** o su reemplazo. |
-| Rechazar | **Rechazar** | En verificación, quien tiene permiso de procesar. En cumplimiento, el oficial. En aprobación, un aprobador. |
+| Verificar | **Verificar** | Quien tiene el permiso de **procesar** proveedores del proceso y, si están configurados, uno de los **cargos verificadores** de ese tipo de proveedor. |
+| Visto bueno de cumplimiento | **Visto bueno de cumplimiento** | El usuario configurado como oficial de cumplimiento en Datos de la empresa (proveedores PEP). |
+| Observación de cumplimiento | **Observación de cumplimiento** | El oficial de cumplimiento, en un proveedor que no es PEP, cuando lo considere necesario. |
+| Aprobar | **Aprobar** | El director del proceso Administrativo o Comercial, según la vinculación, o su reemplazo vigente. Aplica también a los proveedores PEP. |
+| Registrar firma de Gerencia | **Registrar firma de Gerencia** | Proveedor PEP con la Gerencia aprobando en físico: quien tiene el permiso de **procesar** proveedores del proceso. |
+| Aprobar como Gerencia | **Aprobar como Gerencia** | Proveedor PEP con la Gerencia aprobando en el sistema: el director de Gerencia o su reemplazo. |
+| Rechazar | **Rechazar** | En verificación, quien puede verificar. En cumplimiento, el oficial. En aprobación, un aprobador. |
 | Devolver a Borrador | **Devolver a Borrador** | Quien tiene el permiso de **reversar** proveedores del proceso. |
 | Corregir un rechazo | **Corregir FO-300-01** | Quien tiene el permiso de **reversar** proveedores del proceso. |
 
-Las firmas de aprobación y de cumplimiento dependen del cargo, no de un permiso. Esas personas solo necesitan el permiso de consultar proveedores para entrar a la ficha. Los directores y sus reemplazos se configuran en [Procesos y reemplazos de director](guide:admin-processes). El oficial de cumplimiento, en [Datos de la empresa](guide:admin-company-settings).
+Las firmas de aprobación y de cumplimiento no dependen de un permiso sino de quién es la persona. Esas personas solo necesitan el permiso de consultar proveedores para entrar a la ficha. Los directores y sus reemplazos se configuran en [Procesos y reemplazos de director](guide:admin-processes). El oficial de cumplimiento, los cargos verificadores y la forma en que aprueba la Gerencia, en [Datos de la empresa](guide:admin-company-settings). El cargo de cada usuario se asigna en [Usuarios](guide:admin-users).
+
+> **Importante:** el botón **Aprobar** aparece por ser el director del proceso en Procesos, no por el cargo. Un usuario con el cargo "Director administrativo" no aprueba si no está asignado como director del proceso Administrativo o como su reemplazo vigente. Si el proceso no tiene a nadie asignado, la lista de firmas lo muestra en amarillo: **no tiene director ni reemplazo vigente**.
+
+Cada firma muestra la fecha, el nombre y el **cargo** de quien firmó. El cargo se guarda al firmar: si la persona cambia de cargo después, el formato conserva el que tenía.
 
 ## Verificar la información
 
@@ -43,7 +50,7 @@ Abre la ficha del proveedor y baja hasta la tarjeta **Verificación y aprobació
 ![Tarjeta de verificación con sus acciones](images/providers-review/01-verify.png)
 
 1. **Observaciones:** opcionales al firmar y **obligatorias al rechazar**.
-2. **Verificar:** firma la verificación. Si el proveedor es PEP, la versión pasa a **Cumplimiento**; si no, pasa a **En aprobación**.
+2. **Verificar:** firma la verificación. Si el proveedor es PEP, la versión pasa a **Cumplimiento**; si no, pasa a **En aprobación**. Si no ves el botón aunque tengas el permiso de procesar, tu cargo no está entre los verificadores de ese tipo de proveedor.
 3. **Rechazar:** rechaza la versión (ver "Rechazar" más abajo).
 4. **Devolver a Borrador:** regresa la versión para corregirla.
 
@@ -56,11 +63,13 @@ Solo para proveedores **PEP**. Después de la verificación, la lista muestra **
 ![Etapa de cumplimiento de un proveedor PEP](images/providers-review/02-compliance.png)
 
 1. La línea **Oficial de cumplimiento** indica a quién le corresponde la revisión. Si dice "sin configurar en Datos de la empresa", pídele a un administrador que lo configure.
-2. El oficial revisa y hace clic en **Visto bueno de cumplimiento**. La versión pasa a **En aprobación**, que en un proveedor PEP firma Gerencia.
+2. El oficial revisa y hace clic en **Visto bueno de cumplimiento**. La versión pasa a **En aprobación**, donde firma el director del proceso.
+
+En un proveedor que **no es PEP**, el oficial puede dejar una **Observación de cumplimiento** mientras la versión está en verificación o en aprobación. Escribe la observación y pulsa el botón: la observación queda en la línea **Oficial de cumplimiento (observación)** y en el PDF, y la versión sigue en la misma etapa.
 
 ## Aprobar
 
-En la etapa **En aprobación**, la lista muestra una línea por cada vinculación del proveedor que espera firma, con el director que debe aprobarla.
+En la etapa **En aprobación**, la lista muestra una línea por cada vinculación del proveedor que espera firma, con el proceso que debe aprobarla y el nombre de su director y de sus reemplazos vigentes.
 
 ![Aprobación pendiente por cada proceso](images/providers-review/03-approve.png)
 
@@ -75,7 +84,26 @@ Cuando están todas las firmas:
 - La próxima actualización queda para un año después.
 - Los datos básicos del proveedor (correo, teléfono, dirección, municipio) se actualizan con los del formato.
 
-> **Regla:** si el proveedor es PEP, el director de **Gerencia** (o su reemplazo) aprueba todas las vinculaciones de una vez, y los directores de Administrativo y Comercial no firman.
+> **Regla:** el director del proceso aprueba siempre, también si el proveedor es PEP. La Gerencia aprueba a los PEP según lo configurado en Datos de la empresa (ver "Aprobación de Gerencia de un proveedor PEP").
+
+## Aprobación de Gerencia de un proveedor PEP
+
+El formato indica que la Gerencia aprueba a los proveedores PEP, previa verificación del oficial de cumplimiento. Datos de la empresa define cómo se hace:
+
+- **En físico** (por defecto): la Gerencia firma el formato impreso y alguien con el permiso de procesar proveedores lo registra.
+
+![Proveedor PEP aprobado por el director, con la firma física de Gerencia pendiente de registrar](images/providers-review/11-management.png)
+
+1. Cada firma muestra la fecha, el nombre y el **cargo** de quien firmó.
+2. **Aprobación del director del proceso:** con ella el proveedor ya queda aprobado.
+3. **Gerencia (firma física): sin registrar** recuerda que falta registrar la firma; no impide la aprobación.
+4. **Registrar firma de Gerencia** abre el registro:
+
+![Registro de la firma física de Gerencia](images/providers-review/12-management-form.png)
+
+1. **Fecha de la firma:** el día en que la Gerencia firmó el formato impreso.
+2. **Observaciones:** opcionales. Adjunta el formato firmado en **Anexos**.
+- **En el sistema:** el director de Gerencia (o su reemplazo) pulsa **Aprobar como Gerencia**. La versión no queda **Aprobada** hasta que firmen el director del proceso y la Gerencia; la lista muestra **Aprobación de gerencia (pep): pendiente** mientras tanto.
 
 ## Rechazar
 
@@ -116,7 +144,7 @@ Si un proveedor ya tiene aprobado el FO-300-01 de este año y otro proceso lo vi
 ![Aprobación de la vinculación comercial sobre la versión vigente](images/providers-review/07-same-year-linkage.png)
 
 1. En **Verificación y aprobación** aparece la línea **Aprobación comercial: pendiente (director de Comercial)**.
-2. El director del proceso (o su reemplazo; Gerencia si el proveedor es PEP) hace clic en **Aprobar** o en **Rechazar**.
+2. El director del proceso (o su reemplazo) hace clic en **Aprobar** o en **Rechazar**.
 
 Al aprobar, la vinculación queda **Activa**. La fecha de la próxima actualización no cambia: sigue siendo la del formato vigente.
 

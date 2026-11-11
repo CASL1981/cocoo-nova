@@ -283,6 +283,8 @@ final class ProviderFormModal extends Component
             'education_level' => ProviderVersion::EDUCATION_LEVEL_CHARACTERISTIC_CODE,
             'protection_group' => ProviderVersion::PROTECTION_GROUP_CHARACTERISTIC_CODE,
             'tax_regime' => ProviderVersion::TAX_REGIME_CHARACTERISTIC_CODE,
+            'company_type' => ProviderVersion::COMPANY_TYPE_CHARACTERISTIC_CODE,
+            'relationship' => ProviderVersion::RELATIONSHIP_CHARACTERISTIC_CODE,
         ])->map(fn (string $code) => CharacteristicOption::forCharacteristicCode($code)->all())->all();
     }
 

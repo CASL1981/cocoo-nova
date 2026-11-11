@@ -42,7 +42,9 @@ Las características son listas de opciones que aparecen en los formularios, por
 - **Condición de pago** y **Plazo de pago** de los proveedores.
 - **Categoría de pendientes**, **EPS**, **Modalidad de contratación** y **Forma de facturación** de los pendientes.
 - **Clasificación de agotados**.
-- **Régimen tributario**, **Ocupación**, **Nivel de educación** y otras listas del FO-300-01.
+- **Régimen tributario**, **Tipo de empresa** (por ejemplo, agrega aquí una nueva como "Consorcio"), **Tipo de anexo** (los documentos que se cargan al proveedor, como el RUT o la cámara de comercio), **Ocupación**, **Nivel de educación** y otras listas del FO-300-01.
+
+> **Importante:** en **Tipo de anexo (proveedores)** no cambies el nombre de la opción "Certificado de existencia y representación legal". Por ese nombre el sistema pide la fecha de expedición y marca el certificado como vencido a los 3 meses. Las demás opciones se pueden renombrar o inactivar.
 
 Entra por **Utilidades → Características** en el menú lateral. La pantalla tiene dos paneles: a la izquierda las características y a la derecha las opciones de la característica que elijas.
 

@@ -23,6 +23,8 @@ use App\Models\User;
 use App\Settings\CompanySettings;
 use Database\Seeders\CharacteristicOptionSeeder;
 use Database\Seeders\ProcessSeeder;
+use Database\Seeders\ProviderVerifierSeeder;
+use Modules\HumanResources\Database\Seeders\PositionSeeder;
 use Modules\Pharmacy\App\Models\StockOut;
 
 /** Hace clic con JavaScript en el primer elemento del selector y espera la respuesta de Livewire. */
@@ -348,7 +350,7 @@ it('genera las capturas de usuarios', function (): void {
 
     guideShot($page, 'admin-users/02-create', [
         ['#form-identification', '1'], ['#form-email', '2'], ['#form-service_point_id', '3'], ['#role_id', '4'],
-        ['#process_id', '5'], ['#status', '6'], ['#can_request_supplies', '7'],
+        ['#process_id', '5'], ['#position_id', '6'], ['#status', '7'], ['#can_request_supplies', '8'],
     ], '.app-modal.show .modal-content');
 
     $page->script("document.querySelector('.app-modal.show .btn-close').click()");
@@ -496,6 +498,8 @@ it('genera las capturas de los datos de la empresa', function (): void {
         'provider_form_wage_multiplier' => 2,
     ])->save();
 
+    $this->seed([PositionSeeder::class, ProviderVerifierSeeder::class]);
+
     $page = visit('/company-settings')->resize(1440, 900);
 
     guideShot($page, 'admin-company-settings/01-view', [
@@ -511,6 +515,14 @@ it('genera las capturas de los datos de la empresa', function (): void {
         ['#company-wage-year-0', '4'], ['.app-modal.show [wire\:click="addMinimumWage"]', '5'],
         ['#form-compliance_officer_id', '6'],
     ], '.app-modal.show .modal-content');
+
+    // Revisión del FO-300-01: al final del formulario (el cuerpo del modal tiene scroll).
+    startGuidePad($page, '.app-modal.show .form-section:has(#company-management-approval)');
+    $page->script("document.querySelector('.app-modal.show .modal-body').scrollTop = 100000");
+    $page->wait(0.8);
+    guideShot($page, 'admin-company-settings/03-review', [
+        ['#company-management-approval', '1'], ['#company-verifiers-administrative', '2'], ['#company-verifiers-commercial', '3'],
+    ], '.app-modal.show .form-section:has(#company-management-approval)');
 });
 
 it('genera las capturas de la ubicación geográfica', function (): void {

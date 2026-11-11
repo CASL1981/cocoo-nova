@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Providers;
 
+use App\Enums\IdentityDocumentType;
 use App\Enums\PersonType;
 use App\Models\ProviderVersion;
 use App\Models\ProviderVersionDocument;
@@ -33,6 +34,15 @@ final class ManageProviderVersionLines
 
             if ($version->person_type !== PersonType::Legal) {
                 throw ValidationException::withMessages(['name' => 'Los accionistas solo se registran para personas jurídicas.']);
+            }
+
+            // Representante legal solo para accionistas persona jurídica (NIT), y en ese caso obligatorio.
+            if (($data['document_type'] ?? null) === IdentityDocumentType::Nit->value) {
+                if (blank($data['legal_representative_name'] ?? null) || blank($data['legal_representative_identification'] ?? null)) {
+                    throw ValidationException::withMessages(['legal_representative_name' => 'El accionista con NIT es una persona jurídica: ingrese el nombre y la cédula de su representante legal.']);
+                }
+            } else {
+                $data['legal_representative_name'] = $data['legal_representative_identification'] = null;
             }
 
             $total = (float) $version->shareholders()->sum('ownership_percentage') + (float) $data['ownership_percentage'];

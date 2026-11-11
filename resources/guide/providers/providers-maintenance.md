@@ -116,7 +116,7 @@ En **Compras** la ventana incluye además el **Segmento comercial** (medicamento
 Algunos datos del FO-300-01 son datos personales sensibles (Ley 1581 de 2012):
 
 - La información financiera (ingresos, activos, pasivos, patrimonio, insolvencia y moneda extranjera).
-- Las respuestas PEP y el grupo familiar o la relación con PEP.
+- Las respuestas PEP, el grupo básico familiar PEP y los datos del PEP con quien tiene relación.
 - El grupo de protección especial de una persona natural.
 
 Solo los ven:

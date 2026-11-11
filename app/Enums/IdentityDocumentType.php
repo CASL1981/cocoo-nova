@@ -45,13 +45,13 @@ enum IdentityDocumentType: string
     }
 
     /**
-     * Documentos del representante legal de una persona jurídica.
+     * Documentos del representante legal de una persona jurídica (puede ser otra persona jurídica: NIT).
      *
      * @return list<self>
      */
     public static function forLegalRepresentative(): array
     {
-        return [self::CitizenshipCard, self::ForeignerId, self::Passport];
+        return [self::CitizenshipCard, self::ForeignerId, self::Passport, self::Nit];
     }
 
     /**

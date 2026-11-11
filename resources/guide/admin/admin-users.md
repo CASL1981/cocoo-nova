@@ -27,8 +27,9 @@ El listado funciona como todos los demás. Si aún no lo conoces, lee [Cómo usa
 3. **Sede/Servicio:** la sede o centro de costos donde trabaja. En Farmacia define qué pendientes puede gestionar. Oficina Principal abarca todas las sedes.
 4. **Rol:** obligatorio. Define las pantallas y acciones que verá (ver [Roles y permisos](guide:admin-roles)).
 5. **Proceso:** el área a la que pertenece. Su director aprueba las requisiciones de la persona (ver [Procesos y reemplazos de director](guide:admin-processes)).
-6. **Estado:** **Activo**, **Pendiente** o **Inactivo**. Solo los usuarios activos pueden ingresar.
-7. **Solicita suministros:** **Sí** habilita las requisiciones de aseo, papelería y cafetería. Si eliges Sí, el proceso y la sede son obligatorios.
+6. **Cargo:** el cargo del organigrama (ver [Características y cargos](guide:hr-characteristics)). Aparece junto a su nombre en las firmas del FO-300-01 y define si puede verificar proveedores (ver [Datos de la empresa](guide:admin-company-settings)).
+7. **Estado:** **Activo**, **Pendiente** o **Inactivo**. Solo los usuarios activos pueden ingresar.
+8. **Solicita suministros:** **Sí** habilita las requisiciones de aseo, papelería y cafetería. Si eliges Sí, el proceso y la sede son obligatorios.
 
 3. Pulsa **Guardar**.
 

@@ -14,6 +14,7 @@ use App\Livewire\Forms\ProviderLinkageTermsForm;
 use App\Livewire\Forms\ProviderPepRelativeForm;
 use App\Livewire\Forms\ProviderShareholderForm;
 use App\Models\CharacteristicOption;
+use App\Models\Process;
 use App\Models\ProviderLinkage;
 use App\Models\ProviderVersion;
 use App\Models\ProviderVersionDocument;
@@ -69,6 +70,11 @@ abstract class ProviderShow extends Component
     // Observaciones de la firma (verificar, cumplimiento, aprobar) o motivo del rechazo.
     public string $reviewNotes = '';
 
+    // Registro de la firma física de Gerencia (PEP): modal con la fecha en que firmó.
+    public bool $showManagementApproval = false;
+
+    public string $managementSignedOn = '';
+
     // Modal de condiciones del proceso.
     public bool $showTerms = false;
 
@@ -85,6 +91,11 @@ abstract class ProviderShow extends Component
         Gate::authorize('view', $linkage);
 
         $this->linkage = $linkage;
+
+        // Sin formato de trabajo (proveedor básico con histórico): abre el año más reciente en solo lectura.
+        if ($this->defaultVersion === null) {
+            $this->selectedVersionId = $this->versions->first()?->id;
+        }
     }
 
     public function providerScope(): ProviderScope
@@ -136,7 +147,7 @@ abstract class ProviderShow extends Component
             'contacts', 'shareholders', 'pepRelatives', 'documents.uploader:id,name,lastname', 'approvals.user:id,name,lastname',
             'department', 'municipality', 'country', 'nationality', 'birthDepartment', 'birthMunicipality',
             'economicActivity', 'employerEconomicActivity', 'submitter:id,name,lastname', 'verifier:id,name,lastname',
-            'complianceOfficer:id,name,lastname', 'rejecter:id,name,lastname',
+            'complianceOfficer:id,name,lastname', 'rejecter:id,name,lastname', 'managementSigner:id,name,lastname',
         ]);
     }
 
@@ -211,9 +222,10 @@ abstract class ProviderShow extends Component
     }
 
     /**
-     * Firmas pendientes por proceso, con el proceso que debe aprobar cada una.
+     * Firmas pendientes por proceso, con el proceso que debe aprobar cada una y quiénes pueden
+     * firmar hoy (director y reemplazos). Sin firmantes, la pantalla avisa que falta configurarlo.
      *
-     * @return array<string, string>
+     * @return array<string, array{process: string, approvers: list<string>}>
      */
     #[Computed]
     public function pendingApprovals(): array
@@ -228,9 +240,26 @@ abstract class ProviderShow extends Component
 
         $rules = app(ProviderApprovalRules::class);
 
-        return collect($rules->pendingScopes($version))
-            ->mapWithKeys(fn (ProviderScope $scope) => [$scope->label() => $rules->approverProcessName($version, $scope)])
+        $processes = collect($rules->pendingScopes($version))
+            ->mapWithKeys(fn (ProviderScope $scope) => [$scope->label() => $rules->approverProcessName($version, $scope)]);
+
+        // PEP con la Gerencia aprobando en el sistema: también espera esa firma.
+        if ($rules->requiresManagementInSystem($version) && ! $version->hasManagementApproval() && $version->status->isOpen()) {
+            $processes->put('de Gerencia (PEP)', Process::GENERAL_MANAGEMENT);
+        }
+
+        return $processes
+            ->map(fn (string $process): array => ['process' => $process, 'approvers' => $rules->approverNames($process)])
             ->all();
+    }
+
+    /** La Gerencia aprueba en físico: su firma se muestra como registro informativo. */
+    #[Computed]
+    public function managementInPhysical(): bool
+    {
+        $version = $this->version;
+
+        return $version !== null && $version->is_pep && ! app(ProviderApprovalRules::class)->requiresManagementInSystem($version);
     }
 
     /** Oficial de cumplimiento configurado (para informar a quién le corresponde). */
@@ -255,6 +284,7 @@ abstract class ProviderShow extends Component
             'commercial_segment' => ProviderLinkage::COMMERCIAL_SEGMENT_CHARACTERISTIC_CODE,
             'payment_condition' => ProviderLinkage::PAYMENT_CONDITION_CHARACTERISTIC_CODE,
             'payment_term' => ProviderLinkage::PAYMENT_TERM_CHARACTERISTIC_CODE,
+            'document_type' => ProviderVersionDocument::TYPE_CHARACTERISTIC_CODE,
         ])->map(fn (string $code) => CharacteristicOption::forCharacteristicCode($code)->all())->all();
     }
 
@@ -297,6 +327,48 @@ abstract class ProviderShow extends Component
             $scopes = $workflow->approve($this->reviewVersion(), $this->actor(), $this->notes());
             $this->toastSuccess('Aprobado: '.collect($scopes)->map(fn (ProviderScope $scope) => $scope->label())->join(', '));
         });
+    }
+
+    /** Observación del oficial de cumplimiento a un proveedor que no es PEP. */
+    public function addComplianceObservation(ProviderWorkflow $workflow): void
+    {
+        Gate::authorize('addComplianceObservation', $this->freshLinkage);
+
+        $this->validate(['reviewNotes' => ['required', 'string', 'min:5', 'max:2000']], [], ['reviewNotes' => 'observación']);
+
+        $this->runWorkflow(fn () => $workflow->addComplianceObservation($this->openVersion(), $this->actor(), trim($this->reviewNotes)), 'Observación de cumplimiento registrada');
+    }
+
+    /** Aprobación de Gerencia en el sistema (PEP con el modo "en el sistema"). */
+    public function approveAsManagement(ProviderWorkflow $workflow): void
+    {
+        Gate::authorize('approveAsManagement', $this->freshLinkage);
+        $this->runWorkflow(fn () => $workflow->approveAsManagement($this->openVersion(), $this->actor(), $this->notes()), 'Aprobado por Gerencia');
+    }
+
+    public function openManagementApproval(): void
+    {
+        Gate::authorize('registerManagementApproval', $this->freshLinkage);
+        $this->resetValidation('managementSignedOn');
+        $this->managementSignedOn = today()->toDateString();
+        $this->showManagementApproval = true;
+    }
+
+    /** Registra la firma física de Gerencia (informativa; no cambia el estado de la versión). */
+    public function registerManagementApproval(ProviderWorkflow $workflow): void
+    {
+        Gate::authorize('registerManagementApproval', $this->freshLinkage);
+
+        $this->validate(['managementSignedOn' => ['required', 'date', 'before_or_equal:today']], [], ['managementSignedOn' => 'fecha de la firma']);
+
+        $provider = $this->freshLinkage->provider;
+        $version = $provider->openVersion ?? $provider->currentVersion
+            ?? throw ValidationException::withMessages(['version' => 'El proveedor no tiene un formato para registrar.']);
+
+        $this->runWorkflow(function () use ($workflow, $version): void {
+            $workflow->registerPhysicalManagementApproval($version, $this->actor(), $this->managementSignedOn, $this->notes());
+            $this->showManagementApproval = false;
+        }, 'Firma física de Gerencia registrada');
     }
 
     public function reject(ProviderWorkflow $workflow): void
@@ -357,6 +429,18 @@ abstract class ProviderShow extends Component
     }
 
     // ── Líneas del Borrador ──────────────────────────────────────────────────────
+
+    /**
+     * Al cambiar el tipo de documento del accionista a uno distinto de NIT se descarta el
+     * representante legal: solo lo lleva una persona jurídica.
+     */
+    public function updatedShareholderFormDocumentType(): void
+    {
+        if (! $this->shareholderForm->requiresLegalRepresentative()) {
+            $this->shareholderForm->legal_representative_name = null;
+            $this->shareholderForm->legal_representative_identification = null;
+        }
+    }
 
     public function addShareholder(ManageProviderVersionLines $lines): void
     {
@@ -433,6 +517,7 @@ abstract class ProviderShow extends Component
             'provider.linkages', 'contacts', 'shareholders', 'pepRelatives', 'documents', 'approvals.user:id,name,lastname',
             'department', 'municipality', 'country', 'nationality', 'birthDepartment', 'birthMunicipality',
             'economicActivity', 'employerEconomicActivity', 'verifier:id,name,lastname', 'complianceOfficer:id,name,lastname',
+            'managementSigner:id,name,lastname',
         ])->findOrFail($versionId);
 
         $pdf = Pdf::loadView('pdf.provider-version', [

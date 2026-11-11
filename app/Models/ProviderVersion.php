@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\CompanyType;
 use App\Enums\IdentityDocumentType;
 use App\Enums\PersonType;
 use App\Enums\ProviderRequestType;
@@ -63,7 +62,7 @@ use Mattiverse\Userstamps\Traits\Userstamps;
  * @property bool $has_foreign_accounts
  * @property bool $accepts_electronic_means
  * @property string|null $tax_regime
- * @property CompanyType|null $company_type
+ * @property string|null $company_type
  * @property string|null $legal_representative_name
  * @property IdentityDocumentType|null $legal_representative_document_type
  * @property string|null $legal_representative_identification
@@ -83,6 +82,12 @@ use Mattiverse\Userstamps\Traits\Userstamps;
  * @property CarbonImmutable|null $pep_starts_on
  * @property CarbonImmutable|null $pep_ends_on
  * @property bool $has_pep_relationship
+ * @property string|null $pep_relation_name
+ * @property string|null $pep_relation_identification
+ * @property string|null $pep_relation_office
+ * @property CarbonImmutable|null $pep_relation_starts_on
+ * @property CarbonImmutable|null $pep_relation_ends_on
+ * @property string|null $pep_relation_relationship
  * @property bool $is_pep
  * @property RiskLevel $risk_level
  * @property string|null $dispatch_schedule
@@ -98,6 +103,15 @@ use Mattiverse\Userstamps\Traits\Userstamps;
  * @property int|null $compliance_by
  * @property CarbonImmutable|null $compliance_at
  * @property string|null $compliance_observations
+ * @property string|null $submitted_position
+ * @property string|null $verified_position
+ * @property string|null $compliance_position
+ * @property int|null $management_by
+ * @property string|null $management_position
+ * @property bool|null $management_in_system
+ * @property CarbonImmutable|null $management_signed_on
+ * @property CarbonImmutable|null $management_registered_at
+ * @property string|null $management_observations
  * @property int|null $rejected_by
  * @property CarbonImmutable|null $rejected_at
  * @property string|null $rejection_reason
@@ -124,6 +138,9 @@ final class ProviderVersion extends Model
 
     public const TAX_REGIME_CHARACTERISTIC_CODE = 'provider_tax_regime';
 
+    /** Tipo de empresa (Pública, Privada, Mixta, Unión temporal...): lo administran los usuarios. */
+    public const COMPANY_TYPE_CHARACTERISTIC_CODE = 'provider_company_type';
+
     /**
      * Campos del formulario que se capturan en pantalla (los de revisión los asigna el servidor).
      *
@@ -141,7 +158,18 @@ final class ProviderVersion extends Model
         'accepts_risk_bureau', 'monthly_income', 'other_income', 'other_income_activity', 'foreign_currency_operations',
         'foreign_currency_detail', 'manages_public_resources', 'declares_pep', 'public_office', 'pep_starts_on',
         'pep_ends_on', 'has_pep_relationship', 'dispatch_schedule', 'accepts_truthfulness', 'accepts_data_processing',
-        'accepts_information_received', 'accepts_funds_origin',
+        'accepts_information_received', 'accepts_funds_origin', ...self::PEP_RELATION_FIELDS,
+    ];
+
+    /**
+     * "¿Tiene relación con PEP?": datos de la persona PEP con quien se relaciona el proveedor
+     * (se limpian si la respuesta es No).
+     *
+     * @var list<string>
+     */
+    public const PEP_RELATION_FIELDS = [
+        'pep_relation_name', 'pep_relation_identification', 'pep_relation_office',
+        'pep_relation_starts_on', 'pep_relation_ends_on', 'pep_relation_relationship',
     ];
 
     /**
@@ -153,7 +181,7 @@ final class ProviderVersion extends Model
         'document_issued_on', 'nationality_country_id', 'birth_date', 'birth_department_id', 'birth_municipality_id',
         'education_level', 'residence_zone', 'protection_group', 'protection_group_other', 'occupation', 'occupation_other',
         'employer_name', 'employer_activity', 'employer_economic_activity_id', 'minor_representative_name',
-        'minor_representative_identification', 'has_foreign_accounts', 'accepts_electronic_means',
+        'minor_representative_identification', 'accepts_electronic_means',
     ];
 
     /**
@@ -181,9 +209,19 @@ final class ProviderVersion extends Model
     protected $fillable = [
         ...self::FORM_FIELDS,
         'provider_id', 'number', 'request_type', 'status', 'is_pep', 'risk_level',
-        'submitted_by', 'submitted_at', 'verified_by', 'verified_at', 'verification_observations',
-        'compliance_by', 'compliance_at', 'compliance_observations',
+        'submitted_by', 'submitted_at', 'submitted_position', 'verified_by', 'verified_at', 'verified_position', 'verification_observations',
+        'compliance_by', 'compliance_at', 'compliance_position', 'compliance_observations',
         'rejected_by', 'rejected_at', 'rejection_reason', 'approved_at',
+        'management_by', 'management_position', 'management_in_system', 'management_signed_on', 'management_registered_at', 'management_observations',
+    ];
+
+    /** Campos de las firmas de revisión: se descartan al devolver o corregir la versión. */
+    public const REVIEW_RESET = [
+        'submitted_by' => null, 'submitted_at' => null, 'submitted_position' => null,
+        'verified_by' => null, 'verified_at' => null, 'verified_position' => null, 'verification_observations' => null,
+        'compliance_by' => null, 'compliance_at' => null, 'compliance_position' => null, 'compliance_observations' => null,
+        'management_by' => null, 'management_position' => null, 'management_in_system' => null, 'management_signed_on' => null,
+        'management_registered_at' => null, 'management_observations' => null,
     ];
 
     protected function casts(): array
@@ -195,12 +233,13 @@ final class ProviderVersion extends Model
             'document_type' => IdentityDocumentType::class,
             'legal_representative_document_type' => IdentityDocumentType::class,
             'residence_zone' => ResidenceZone::class,
-            'company_type' => CompanyType::class,
             'risk_level' => RiskLevel::class,
             'document_issued_on' => 'date',
             'birth_date' => 'date',
             'pep_starts_on' => 'date',
             'pep_ends_on' => 'date',
+            'pep_relation_starts_on' => 'date',
+            'pep_relation_ends_on' => 'date',
             'total_assets' => 'decimal:2',
             'total_liabilities' => 'decimal:2',
             'total_equity' => 'decimal:2',
@@ -224,6 +263,9 @@ final class ProviderVersion extends Model
             'compliance_at' => 'datetime',
             'rejected_at' => 'datetime',
             'approved_at' => 'datetime',
+            'management_in_system' => 'boolean',
+            'management_signed_on' => 'date',
+            'management_registered_at' => 'datetime',
         ];
     }
 
@@ -329,6 +371,22 @@ final class ProviderVersion extends Model
         return $this->belongsTo(User::class, 'compliance_by');
     }
 
+    /**
+     * Quien aprobó como Gerencia o registró su firma física.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function managementSigner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'management_by');
+    }
+
+    /** Tiene registrada la aprobación de Gerencia (en físico o en el sistema). */
+    public function hasManagementApproval(): bool
+    {
+        return $this->management_in_system !== null;
+    }
+
     /** @return BelongsTo<User, $this> */
     public function rejecter(): BelongsTo
     {
@@ -343,6 +401,12 @@ final class ProviderVersion extends Model
     public function isNatural(): bool
     {
         return $this->person_type === PersonType::Natural;
+    }
+
+    /** Tiene cargo público registrado: administra recursos públicos, se declara PEP o ambas. */
+    public function hasPublicOffice(): bool
+    {
+        return $this->manages_public_resources || $this->declares_pep;
     }
 
     /** Nombre del archivo PDF del formato de esta versión. */

@@ -19,6 +19,7 @@ use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Mattiverse\Userstamps\Traits\Userstamps;
+use Modules\HumanResources\App\Models\HrCharacteristicOption;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -31,6 +32,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int|null $role_id
  * @property int|null $service_point_id
  * @property int|null $process_id
+ * @property int|null $position_id
  * @property bool $can_request_supplies
  * @property Carbon|null $email_verified_at
  * @property string $password
@@ -41,7 +43,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['identification', 'name', 'lastname', 'process_id', 'can_request_supplies', 'email', 'status', 'role_id', 'service_point_id', 'pending_service_point_id', 'password', 'profile_photo_path'])]
+#[Fillable(['identification', 'name', 'lastname', 'process_id', 'position_id', 'can_request_supplies', 'email', 'status', 'role_id', 'service_point_id', 'pending_service_point_id', 'password', 'profile_photo_path'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -122,6 +124,22 @@ class User extends Authenticatable implements PasskeyUser
     public function process(): BelongsTo
     {
         return $this->belongsTo(Process::class);
+    }
+
+    /**
+     * Cargo del usuario (Talento Humano → Cargos). Incluye cargos eliminados para mostrarlos.
+     *
+     * @return BelongsTo<HrCharacteristicOption, $this>
+     */
+    public function position(): BelongsTo
+    {
+        return $this->belongsTo(HrCharacteristicOption::class, 'position_id')->withTrashed();
+    }
+
+    /** Nombre del cargo para las firmas (consulta el cargo si no está cargado). */
+    public function positionName(): ?string
+    {
+        return $this->position_id === null ? null : $this->loadMissing('position')->position?->name;
     }
 
     /**

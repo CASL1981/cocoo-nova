@@ -25,6 +25,11 @@
                                     :options="\App\Models\Process::options()" placeholder="Seleccionar" />
                 </div>
                 <div class="col-md-6">
+                    <x-forms.select name="form.position_id" id="position_id" label="Cargo"
+                                    :options="\Modules\HumanResources\App\Models\HrCharacteristicOption::optionsFor(\Modules\HumanResources\App\Models\HrCharacteristic::POSITIONS_CODE) + ($form->user?->position_id ? [$form->user->position_id => $form->user->positionName()] : [])"
+                                    placeholder="Sin cargo" hint="Talento Humano → Cargos. Aparece en las firmas del FO-300-01." />
+                </div>
+                <div class="col-md-6">
                     <x-forms.select name="form.status" id="status" label="Estado" required :options="\App\Enums\UserStatus::options()" />
                 </div>
                 <div class="col-md-6">

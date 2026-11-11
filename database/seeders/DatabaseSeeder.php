@@ -47,5 +47,8 @@ class DatabaseSeeder extends Seeder
 
         // Cargos del organigrama vigente (Talento Humano → Características → Cargos).
         $this->call(PositionSeeder::class);
+
+        // Cargos que verifican cada tipo de proveedor (Datos de la empresa → Revisión del FO-300-01).
+        $this->call(ProviderVerifierSeeder::class);
     }
 }

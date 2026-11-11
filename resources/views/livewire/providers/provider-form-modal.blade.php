@@ -1,4 +1,4 @@
-@use('App\Enums\CompanyType')
+@use('App\Support\ProviderDeclarations')
 @use('App\Enums\IdentityDocumentType')
 @use('App\Enums\PersonType')
 @use('App\Enums\ProviderContactRole')
@@ -96,7 +96,7 @@
                     </div>
                     <div class="col-md-3">
                         <x-forms.select name="form.company_type" id="provider-company-type" label="Tipo de empresa" required
-                                        :options="CompanyType::options()" placeholder="Seleccione" />
+                                        :options="$options['company_type']" placeholder="Seleccione" />
                     </div>
                 @endif
             </x-forms.section>
@@ -211,23 +211,23 @@
             {{-- 5. Información financiera --}}
             <x-forms.section title="Información financiera ($)" icon="bi-cash-coin" description="Dato sensible: solo lo ven quienes verifican y aprueban.">
                 <div class="col-md-4">
-                    <x-forms.input name="form.monthly_income" id="provider-monthly-income" label="Ingresos mensuales (actividad principal)" type="number" min="0" step="0.01" required />
+                    <x-forms.money name="form.monthly_income" id="provider-monthly-income" label="Ingresos mensuales (actividad principal)" required />
                 </div>
                 <div class="col-md-4">
-                    <x-forms.input name="form.other_income" id="provider-other-income" label="Otros ingresos" type="number" min="0" step="0.01" />
+                    <x-forms.money name="form.other_income" id="provider-other-income" label="Otros ingresos" />
                 </div>
                 <div class="col-md-4">
                     <x-forms.input name="form.other_income_activity" id="provider-other-income-activity" label="¿De qué actividad?" />
                 </div>
                 @unless ($natural)
                     <div class="col-md-4">
-                        <x-forms.input name="form.total_assets" id="provider-assets" label="Total de activos" type="number" min="0" step="0.01" required />
+                        <x-forms.money name="form.total_assets" id="provider-assets" label="Total de activos" required />
                     </div>
                     <div class="col-md-4">
-                        <x-forms.input name="form.total_liabilities" id="provider-liabilities" label="Total de pasivos" type="number" min="0" step="0.01" required />
+                        <x-forms.money name="form.total_liabilities" id="provider-liabilities" label="Total de pasivos" required />
                     </div>
                     <div class="col-md-4">
-                        <x-forms.input name="form.total_equity" id="provider-equity" label="Total de patrimonio" type="number" step="0.01" required />
+                        <x-forms.money name="form.total_equity" id="provider-equity" label="Total de patrimonio" required allow-negative />
                     </div>
                     <div class="col-12">
                         <x-forms.checkbox name="form.in_insolvency" id="provider-insolvency" label="Se encuentra en un proceso de ley de insolvencia" />
@@ -235,9 +235,7 @@
                 @endunless
                 <div class="col-md-6">
                     <x-forms.checkbox name="form.foreign_currency_operations" id="provider-foreign-ops" label="Realiza operaciones en moneda extranjera" model-modifier="live" />
-                    @if ($natural)
-                        <x-forms.checkbox name="form.has_foreign_accounts" id="provider-foreign-accounts" label="Posee cuentas en moneda extranjera" class="mt-2" />
-                    @endif
+                    <x-forms.checkbox name="form.has_foreign_accounts" id="provider-foreign-accounts" label="Posee cuentas en moneda extranjera" class="mt-2" />
                 </div>
                 @if ($form->foreign_currency_operations)
                     <div class="col-md-6">
@@ -250,16 +248,17 @@
             <x-forms.section title="Personas expuestas políticamente (PEP)" icon="bi-bank"
                              description="Cualquier respuesta afirmativa califica al proveedor como PEP (riesgo alto).">
                 <div class="col-md-4">
-                    <x-forms.checkbox name="form.manages_public_resources" id="provider-public-resources" label="Administra recursos públicos" />
+                    <x-forms.checkbox name="form.manages_public_resources" id="provider-public-resources" label="Administra recursos públicos" model-modifier="live" />
                 </div>
                 <div class="col-md-4">
                     <x-forms.checkbox name="form.declares_pep" id="provider-declares-pep" label="Es una persona expuesta políticamente" model-modifier="live" />
                 </div>
                 <div class="col-md-4">
-                    <x-forms.checkbox name="form.has_pep_relationship" id="provider-pep-relationship" label="Tiene relación con un PEP"
-                                      hint="Registre el familiar o la persona relacionada en el detalle del proveedor." />
+                    <x-forms.checkbox name="form.has_pep_relationship" id="provider-pep-relationship" label="Tiene relación con un PEP" model-modifier="live"
+                                      hint="Padres, cónyuge, suegros, hijos, yerno/nuera, abuelos, hermanos, cuñados o nietos de un PEP." />
                 </div>
-                @if ($form->declares_pep)
+                {{-- Cargo público y fechas: con recursos públicos, PEP o ambas. --}}
+                @if ($form->requiresPublicOffice())
                     <div class="col-md-6">
                         <x-forms.input name="form.public_office" id="provider-public-office" label="Cargo público" required />
                     </div>
@@ -270,19 +269,45 @@
                         <x-forms.input name="form.pep_ends_on" id="provider-pep-ends" label="Fin del cargo" type="date" hint="Vacío si sigue vigente." />
                     </div>
                 @endif
+                {{-- Persona PEP con quien tiene relación (distinto del grupo familiar PEP, que va en el detalle). --}}
+                @if ($form->has_pep_relationship)
+                    <div class="col-12"><span class="form-label fw-semibold mb-0">Datos del PEP con quien tiene relación</span></div>
+                    <div class="col-md-5">
+                        <x-forms.input name="form.pep_relation_name" id="provider-pep-relation-name" label="Nombre del PEP" required />
+                    </div>
+                    <div class="col-md-3">
+                        <x-forms.input name="form.pep_relation_identification" id="provider-pep-relation-id" label="Identificación del PEP" required />
+                    </div>
+                    <div class="col-md-4">
+                        <x-forms.select name="form.pep_relation_relationship" id="provider-pep-relation-relationship" label="Relación" required
+                                        :options="$options['relationship']" placeholder="Seleccione" />
+                    </div>
+                    <div class="col-md-6">
+                        <x-forms.input name="form.pep_relation_office" id="provider-pep-relation-office" label="Cargo del PEP" required />
+                    </div>
+                    <div class="col-md-3">
+                        <x-forms.input name="form.pep_relation_starts_on" id="provider-pep-relation-starts" label="Inicio en el cargo PEP" type="date" required />
+                    </div>
+                    <div class="col-md-3">
+                        <x-forms.input name="form.pep_relation_ends_on" id="provider-pep-relation-ends" label="Fin del cargo PEP" type="date" hint="Vacío si sigue vigente." />
+                    </div>
+                @endif
             </x-forms.section>
 
             {{-- 7. Contactos --}}
-            <x-forms.section title="Contactos" icon="bi-telephone" description="Deje vacío el cargo que no aplica.">
+            <x-forms.section title="Contactos" icon="bi-telephone" description="Deje vacío el contacto que no aplica; si lo diligencia, el cargo es obligatorio.">
                 @foreach (ProviderContactRole::cases() as $role)
-                    <div class="col-md-3 d-flex align-items-end"><span class="form-label fw-semibold mb-2">{{ $role->label() }}</span></div>
+                    <div class="col-md-2 d-flex align-items-end"><span class="form-label fw-semibold mb-2">{{ $role->label() }}</span></div>
                     <div class="col-md-3">
                         <x-forms.input name="form.contacts.{{ $role->value }}.name" id="provider-contact-{{ $role->value }}-name" label="Nombre" />
                     </div>
                     <div class="col-md-3">
+                        <x-forms.input name="form.contacts.{{ $role->value }}.job_title" id="provider-contact-{{ $role->value }}-job-title" label="Cargo" required />
+                    </div>
+                    <div class="col-md-2">
                         <x-forms.input name="form.contacts.{{ $role->value }}.phone" id="provider-contact-{{ $role->value }}-phone" label="Teléfono" />
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <x-forms.input name="form.contacts.{{ $role->value }}.email" id="provider-contact-{{ $role->value }}-email" label="Correo" type="email" />
                     </div>
                 @endforeach
@@ -294,15 +319,19 @@
 
             {{-- 8. Declaraciones --}}
             <x-forms.section title="Declaraciones y autorizaciones" icon="bi-patch-check"
-                             description="Las cuatro primeras son obligatorias para enviar a verificación.">
-                <div class="col-md-6"><x-forms.checkbox name="form.accepts_truthfulness" id="provider-truthfulness" label="Declaración de veracidad" /></div>
-                <div class="col-md-6"><x-forms.checkbox name="form.accepts_data_processing" id="provider-data-processing" label="Consentimiento para el tratamiento de datos personales" /></div>
-                <div class="col-md-6"><x-forms.checkbox name="form.accepts_information_received" id="provider-information-received" label="Declaración de información recibida por COODESCOR" /></div>
-                <div class="col-md-6"><x-forms.checkbox name="form.accepts_funds_origin" id="provider-funds-origin" label="Declaración de origen de fondos" /></div>
-                <div class="col-md-6"><x-forms.checkbox name="form.accepts_risk_bureau" id="provider-risk-bureau" label="Autoriza la consulta y reporte en centrales de riesgo" /></div>
-                @if ($natural)
-                    <div class="col-md-6"><x-forms.checkbox name="form.accepts_electronic_means" id="provider-electronic-means" label="Acepta mecanismos electrónicos de verificación (Ley 527 de 1999)" /></div>
-                @endif
+                             description="Las cuatro primeras son obligatorias para enviar a verificación. Pase el mouse por el ícono para leer el texto completo.">
+                @php
+                    $declarationIds = [
+                        'accepts_truthfulness' => 'provider-truthfulness', 'accepts_data_processing' => 'provider-data-processing',
+                        'accepts_information_received' => 'provider-information-received', 'accepts_funds_origin' => 'provider-funds-origin',
+                        'accepts_risk_bureau' => 'provider-risk-bureau', 'accepts_electronic_means' => 'provider-electronic-means',
+                    ];
+                @endphp
+                @foreach (ProviderDeclarations::for($form->personType()) as $field => $declaration)
+                    <div class="col-md-6" wire:key="declaration-{{ $field }}">
+                        <x-forms.checkbox name="form.{{ $field }}" :id="$declarationIds[$field]" :label="$declaration['label']" :info="$declaration['text']" />
+                    </div>
+                @endforeach
             </x-forms.section>
         </div>
         <x-slot:footer>

@@ -8,7 +8,7 @@ El sistema usa el director del proceso (o su reemplazo vigente) para decidir **q
 - **Proveedores (FO-300-01):**
   - La vinculación administrativa la aprueba el director de **Administrativo**.
   - La vinculación comercial la aprueba el director de **Comercial**.
-  - Si el proveedor es **PEP** (persona expuesta políticamente), aprueba el director de **Gerencia**, después de la revisión del oficial de cumplimiento.
+  - Si el proveedor es **PEP** (persona expuesta políticamente), también aprueba el director de su proceso, después de la revisión del oficial de cumplimiento. La Gerencia firma en físico o, si así se configura en Datos de la empresa, su director aprueba en el sistema.
 
   Ver [Verificar, aprobar o rechazar](guide:providers-review).
 

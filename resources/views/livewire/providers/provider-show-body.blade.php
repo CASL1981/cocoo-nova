@@ -4,7 +4,7 @@
 --}}
 @use('App\Enums\IdentityDocumentType')
 @use('App\Enums\PersonType')
-@use('App\Enums\ProviderDocumentType')
+@use('App\Models\ProviderVersionDocument')
 @use('App\Enums\ProviderFormStatus')
 @use('App\Enums\ProviderVersionStatus')
 
@@ -155,10 +155,18 @@
             <i class="bi bi-eye" aria-hidden="true"></i>
             <div class="me-auto">
                 Estás consultando el FO-300-01 de <strong>{{ $version?->created_at?->year }}</strong> (versión {{ $version?->number }}), solo lectura.
+                @if ($this->defaultVersion === null)
+                    <div class="small">
+                        Es un formato de un año anterior: no está vigente. El proveedor trabaja como básico (hasta 2 SMMLV por orden y por mes)
+                        hasta diligenciar el FO-300-01 de este año.
+                    </div>
+                @endif
             </div>
-            <button type="button" wire:click="showDefaultVersion" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al formato actual
-            </button>
+            @if ($this->defaultVersion !== null)
+                <button type="button" wire:click="showDefaultVersion" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al formato actual
+                </button>
+            @endif
         </div>
     @endunless
 
@@ -220,7 +228,7 @@
                         @else
                             <x-document.field label="País de constitución" :value="$version->country?->name" />
                             <x-document.field label="Régimen tributario" :value="$version->tax_regime" />
-                            <x-document.field label="Tipo de empresa" :value="$version->company_type?->label()" />
+                            <x-document.field label="Tipo de empresa" :value="$version->company_type" />
                             <x-document.field label="Representante legal"
                                               :value="$version->legal_representative_name ? $version->legal_representative_name.' · '.$version->legal_representative_document_type?->value.' '.$version->legal_representative_identification : null" />
                         @endif
@@ -258,15 +266,23 @@
                                 <x-document.field label="Insolvencia" :value="$yesNo($version->in_insolvency)" />
                             @endunless
                             <x-document.field label="Moneda extranjera" :value="$version->foreign_currency_operations ? 'Sí: '.$version->foreign_currency_detail : 'No'" />
+                            <x-document.field label="Cuentas en moneda extranjera" :value="$yesNo($version->has_foreign_accounts)" />
                         </x-document.section>
 
                         <x-document.section title="PEP" icon="bi-bank">
                             <x-document.field label="Recursos públicos" :value="$yesNo($version->manages_public_resources)" />
-                            <x-document.field label="Es PEP" :value="$version->declares_pep ? 'Sí: '.$version->public_office : 'No'" />
-                            @if ($version->declares_pep)
-                                <x-document.field label="Cargo" :value="$date($version->pep_starts_on).' a '.($date($version->pep_ends_on) ?? 'vigente')" />
+                            <x-document.field label="Es PEP" :value="$yesNo($version->declares_pep)" />
+                            @if ($version->hasPublicOffice())
+                                <x-document.field label="Cargo público" :value="$version->public_office" />
+                                <x-document.field label="Periodo del cargo" :value="$date($version->pep_starts_on).' a '.($date($version->pep_ends_on) ?? 'vigente')" />
                             @endif
                             <x-document.field label="Relación con PEP" :value="$yesNo($version->has_pep_relationship)" />
+                            @if ($version->has_pep_relationship)
+                                <x-document.field label="PEP relacionado" :value="$version->pep_relation_name.' · '.$version->pep_relation_identification" />
+                                <x-document.field label="Relación" :value="$version->pep_relation_relationship" />
+                                <x-document.field label="Cargo del PEP" :value="$version->pep_relation_office" />
+                                <x-document.field label="Periodo del cargo" :value="$date($version->pep_relation_starts_on).' a '.($date($version->pep_relation_ends_on) ?? 'vigente')" />
+                            @endif
                         </x-document.section>
                     @else
                         <x-document.section title="Datos reservados" icon="bi-lock">
@@ -281,15 +297,15 @@
                         <h6 class="fw-semibold"><i class="bi bi-telephone" aria-hidden="true"></i> Contactos</h6>
                         <div class="table-responsive border rounded">
                             <table class="table table-sm align-middle mb-0">
-                                <thead><tr><th>Cargo</th><th>Nombre</th><th>Teléfono</th><th>Correo</th></tr></thead>
+                                <thead><tr><th>Contacto</th><th>Nombre</th><th>Cargo</th><th>Teléfono</th><th>Correo</th></tr></thead>
                                 <tbody>
                                     @forelse ($version->contacts as $contact)
                                         <tr wire:key="contact-{{ $contact->id }}">
-                                            <td>{{ $contact->role->label() }}</td><td>{{ $contact->name ?? '-' }}</td>
+                                            <td>{{ $contact->role->label() }}</td><td>{{ $contact->name ?? '-' }}</td><td>{{ $contact->job_title }}</td>
                                             <td>{{ $contact->phone ?? '-' }}</td><td class="text-break">{{ $contact->email ?? '-' }}</td>
                                         </tr>
                                     @empty
-                                        <tr><td colspan="4" class="text-center text-body-secondary py-3">Sin contactos registrados</td></tr>
+                                        <tr><td colspan="5" class="text-center text-body-secondary py-3">Sin contactos registrados</td></tr>
                                     @endforelse
                                 </tbody>
                             </table>
@@ -301,15 +317,16 @@
                     <div class="col-lg-4">
                         <h6 class="fw-semibold"><i class="bi bi-patch-check" aria-hidden="true"></i> Declaraciones</h6>
                         <ul class="list-unstyled small mb-0">
-                            @foreach ([
-                                'accepts_truthfulness' => 'Veracidad', 'accepts_data_processing' => 'Tratamiento de datos',
-                                'accepts_information_received' => 'Información recibida', 'accepts_funds_origin' => 'Origen de fondos',
-                                'accepts_risk_bureau' => 'Centrales de riesgo', 'accepts_electronic_means' => 'Mecanismos electrónicos',
-                            ] as $field => $label)
-                                @continue($field === 'accepts_electronic_means' && ! $version->isNatural())
-                                <li>
-                                    <i @class(['bi', 'bi-check-circle-fill text-success' => $version->{$field}, 'bi-x-circle text-danger' => ! $version->{$field}]) aria-hidden="true"></i>
-                                    {{ $label }}
+                            {{-- El ícono de información muestra el texto completo de cada declaración del formato. --}}
+                            @foreach (\App\Support\ProviderDeclarations::for($version->person_type) as $field => $declaration)
+                                <li class="provider-declaration" wire:key="declaration-{{ $field }}">
+                                    <i @class(['bi', 'bi-check-circle-fill text-success' => $version->{$field}, 'bi-x-circle text-danger' => ! $version->{$field}])
+                                       aria-label="{{ $version->{$field} ? 'Aceptada' : 'No aceptada' }}"></i>
+                                    {{ $declaration['label'] }}
+                                    <x-tooltip :text="$declaration['text']" placement="left" wide>
+                                        <i class="bi bi-info-circle text-primary provider-declaration-info" tabindex="0" role="img"
+                                           aria-label="Texto completo: {{ $declaration['text'] }}"></i>
+                                    </x-tooltip>
                                 </li>
                             @endforeach
                         </ul>
@@ -325,13 +342,17 @@
                     <x-slot:entry>
                         <form wire:submit="addShareholder" class="row g-3 align-items-start">
                             <div class="col-lg-2 col-md-4">
-                                <x-forms.select name="shareholderForm.document_type" id="shareholder-type" label="Tipo" required
+                                <x-forms.select name="shareholderForm.document_type" id="shareholder-type" label="Tipo" required model-modifier="live"
                                                 :options="IdentityDocumentType::optionsFor(IdentityDocumentType::forShareholders())" />
                             </div>
                             <div class="col-lg-2 col-md-4"><x-forms.input name="shareholderForm.identification" id="shareholder-id" label="Identificación" required /></div>
-                            <div class="col-lg-3 col-md-4"><x-forms.input name="shareholderForm.name" id="shareholder-name" label="Nombre o razón social" required /></div>
-                            <div class="col-lg-2 col-md-4"><x-forms.input name="shareholderForm.legal_representative_name" id="shareholder-rep" label="Representante legal" /></div>
-                            <div class="col-lg-1 col-md-4"><x-forms.input name="shareholderForm.ownership_percentage" id="shareholder-pct" label="%" type="number" step="0.01" min="5" max="100" required /></div>
+                            <div class="col-lg-4 col-md-4"><x-forms.input name="shareholderForm.name" id="shareholder-name" label="Nombre o razón social" required /></div>
+                            <div class="col-lg-2 col-md-4"><x-forms.input name="shareholderForm.ownership_percentage" id="shareholder-pct" label="%" type="number" step="0.01" min="5" max="100" required /></div>
+                            {{-- Accionista con NIT = persona jurídica: su representante legal es obligatorio. --}}
+                            @if ($this->shareholderForm->requiresLegalRepresentative())
+                                <div class="col-lg-4 col-md-6"><x-forms.input name="shareholderForm.legal_representative_name" id="shareholder-rep" label="Representante legal" required /></div>
+                                <div class="col-lg-2 col-md-6"><x-forms.input name="shareholderForm.legal_representative_identification" id="shareholder-rep-id" label="Cédula del representante" required /></div>
+                            @endif
                             <div class="col-lg-2 document-entry-actions">
                                 <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="addShareholder">
                                     <i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar
@@ -343,13 +364,14 @@
 
                 <div class="table-responsive border rounded document-lines-table">
                     <table class="table align-middle">
-                        <thead><tr><th class="col-fit">Documento</th><th>Nombre o razón social</th><th>Representante legal</th><th class="col-fit text-end">%</th><th class="col-fit text-end">Acciones</th></tr></thead>
+                        <thead><tr><th class="col-fit">Documento</th><th>Nombre o razón social</th><th>Representante legal</th><th class="col-fit">Cédula RL</th><th class="col-fit text-end">%</th><th class="col-fit text-end">Acciones</th></tr></thead>
                         <tbody>
                             @forelse ($version->shareholders as $shareholder)
                                 <tr wire:key="shareholder-{{ $shareholder->id }}">
                                     <td class="text-nowrap">{{ $shareholder->document_type->value }} {{ $shareholder->identification }}</td>
                                     <td>{{ $shareholder->name }}</td>
                                     <td>{{ $shareholder->legal_representative_name ?? '-' }}</td>
+                                    <td class="text-nowrap">{{ $shareholder->legal_representative_identification ?? '-' }}</td>
                                     <td class="text-end">{{ number_format((float) $shareholder->ownership_percentage, 2) }}</td>
                                     <td class="text-end">
                                         @if ($editing)
@@ -363,7 +385,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <x-document.empty-row colspan="5" text="Sin accionistas registrados" />
+                                <x-document.empty-row colspan="6" text="Sin accionistas registrados" />
                             @endforelse
                         </tbody>
                     </table>
@@ -371,30 +393,23 @@
             </x-document.lines>
         @endif
 
-        {{-- Familiares o personas relacionadas con un PEP (dato sensible) --}}
+        {{-- Grupo básico familiar que es PEP (dato sensible). La persona PEP con quien "tiene relación"
+             se registra en el formulario del FO-300-01 y se ve en la sección PEP. --}}
         @if ($sensitive || $editing)
-            <x-document.lines title="Grupo familiar o relación con PEP" icon="bi-people" entry-title="Agregar persona relacionada">
+            <x-document.lines title="Grupo básico familiar PEP" icon="bi-people" entry-title="Agregar familiar PEP">
                 @if ($editing)
                     <x-slot:entry>
                         <form wire:submit="addRelative" class="row g-3 align-items-start">
                             <div class="col-lg-2 col-md-4">
-                                <x-forms.select name="relativeForm.document_type" id="relative-type" label="Tipo"
-                                                :options="IdentityDocumentType::optionsFor(IdentityDocumentType::forPeople())" placeholder="-" />
+                                <x-forms.select name="relativeForm.document_type" id="relative-type" label="Tipo de identificación" required
+                                                :options="IdentityDocumentType::optionsFor(IdentityDocumentType::forPeople())" placeholder="Seleccione" />
                             </div>
-                            <div class="col-lg-2 col-md-4"><x-forms.input name="relativeForm.identification" id="relative-id" label="Número" /></div>
-                            <div class="col-lg-3 col-md-4"><x-forms.input name="relativeForm.name" id="relative-name" label="Nombres y apellidos" required /></div>
+                            <div class="col-lg-2 col-md-4"><x-forms.input name="relativeForm.identification" id="relative-id" label="Número de documento" required /></div>
+                            <div class="col-lg-4 col-md-4"><x-forms.input name="relativeForm.name" id="relative-name" label="Nombres y apellidos" required /></div>
                             <div class="col-lg-2 col-md-4">
                                 <x-forms.select name="relativeForm.relationship" id="relative-relationship" label="Parentesco" required
                                                 :options="$options['relationship']" placeholder="Seleccione" />
                             </div>
-                            <div class="col-lg-3 col-md-8 d-flex align-items-end">
-                                <x-forms.checkbox name="relativeForm.is_pep" id="relative-is-pep" label="Es PEP" model-modifier="live" class="mb-2" />
-                            </div>
-                            @if ($relativeForm->is_pep)
-                                <div class="col-lg-4 col-md-6"><x-forms.input name="relativeForm.public_office" id="relative-office" label="Cargo PEP" required /></div>
-                                <div class="col-lg-2 col-md-3"><x-forms.input name="relativeForm.pep_starts_on" id="relative-starts" label="Inicio" type="date" /></div>
-                                <div class="col-lg-2 col-md-3"><x-forms.input name="relativeForm.pep_ends_on" id="relative-ends" label="Fin" type="date" hint="Vacío si sigue vigente." /></div>
-                            @endif
                             <div class="col-lg-2 document-entry-actions">
                                 <button type="submit" class="btn btn-primary" wire:loading.attr="disabled" wire:target="addRelative">
                                     <i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar
@@ -406,19 +421,18 @@
 
                 <div class="table-responsive border rounded document-lines-table">
                     <table class="table align-middle">
-                        <thead><tr><th class="col-fit">Documento</th><th>Nombre</th><th>Parentesco</th><th>PEP</th><th class="col-fit text-end">Acciones</th></tr></thead>
+                        <thead><tr><th class="col-fit">Documento</th><th>Nombres y apellidos</th><th>Parentesco</th><th class="col-fit text-end">Acciones</th></tr></thead>
                         <tbody>
                             @forelse ($version->pepRelatives as $relative)
                                 <tr wire:key="relative-{{ $relative->id }}">
                                     <td class="text-nowrap">{{ trim($relative->document_type?->value.' '.$relative->identification) ?: '-' }}</td>
                                     <td>{{ $relative->name }}</td>
                                     <td>{{ $relative->relationship }}</td>
-                                    <td>{{ $relative->is_pep ? 'Sí · '.$relative->public_office.' ('.($date($relative->pep_ends_on) ?? 'vigente').')' : 'No' }}</td>
                                     <td class="text-end">
                                         @if ($editing)
-                                            <x-tooltip text="Quitar persona">
-                                                <button type="button" class="btn btn-sm btn-outline-danger btn-table-icon" aria-label="Quitar persona"
-                                                        x-on:click="confirmAction({ title: 'Quitar persona', text: '¿Quitar esta persona de la versión?' }).then(() => $wire.removeRelative({{ $relative->id }})).catch(() => {})">
+                                            <x-tooltip text="Quitar familiar">
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-table-icon" aria-label="Quitar familiar"
+                                                        x-on:click="confirmAction({ title: 'Quitar familiar', text: '¿Quitar este familiar PEP de la versión?' }).then(() => $wire.removeRelative({{ $relative->id }})).catch(() => {})">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </x-tooltip>
@@ -426,7 +440,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <x-document.empty-row colspan="5" text="Sin personas relacionadas" />
+                                <x-document.empty-row colspan="4" text="Sin familiares PEP registrados" />
                             @endforelse
                         </tbody>
                     </table>
@@ -441,9 +455,9 @@
                     <form wire:submit="addDocument" class="row g-3 align-items-start">
                         <div class="col-lg-4 col-md-6">
                             <x-forms.select name="documentForm.type" id="document-type" label="Tipo de anexo" required
-                                            :options="ProviderDocumentType::options()" placeholder="Seleccione" model-modifier="live" />
+                                            :options="$options['document_type']" placeholder="Seleccione" model-modifier="live" />
                         </div>
-                        @if (ProviderDocumentType::tryFrom($documentForm->type)?->requiresIssueDate())
+                        @if (ProviderVersionDocument::requiresIssueDate($documentForm->type))
                             <div class="col-lg-2 col-md-6"><x-forms.input name="documentForm.issued_on" id="document-issued" label="Expedición" type="date" required /></div>
                         @endif
                         <div class="col-lg-4 col-md-8">
@@ -468,7 +482,7 @@
                         @forelse ($version->documents as $document)
                             <tr wire:key="document-{{ $document->id }}">
                                 <td>
-                                    {{ $document->type->label() }}
+                                    {{ $document->type }}
                                     @if ($document->isExpired())<span class="badge bg-danger ms-1">Vencido</span>@endif
                                 </td>
                                 <td class="text-break">{{ $document->original_name }}</td>
@@ -507,34 +521,68 @@
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-lg-7">
+                        @php
+                            // Firma: fecha · nombre · cargo (el cargo se guarda al firmar).
+                            $signature = fn ($at, $user, $position) => collect([$date($at), $user?->fullName(), $position])->filter()->join(' · ');
+                        @endphp
                         <ul class="list-group">
                             <li class="list-group-item">
                                 <strong>Enviada a verificación:</strong>
-                                {{ $version->submitted_at ? $date($version->submitted_at).' · '.$version->submitter?->fullName() : 'Pendiente' }}
+                                {{ $version->submitted_at ? $signature($version->submitted_at, $version->submitter, $version->submitted_position) : 'Pendiente' }}
                             </li>
                             <li class="list-group-item">
                                 <strong>Verificación:</strong>
-                                {{ $version->verified_at ? $date($version->verified_at).' · '.$version->verifier?->fullName() : 'Pendiente' }}
+                                @if ($version->verified_at)
+                                    {{ $signature($version->verified_at, $version->verifier, $version->verified_position) }}
+                                @else
+                                    {{ $version->status === ProviderVersionStatus::Approved ? 'Sin registro en el sistema (formato físico)' : 'Pendiente' }}
+                                @endif
                                 @if ($version->verification_observations)<div class="small text-body-secondary">{{ $version->verification_observations }}</div>@endif
                             </li>
-                            @if ($version->is_pep)
+                            @if ($version->is_pep || $version->compliance_at)
                                 <li class="list-group-item">
-                                    <strong>Oficial de cumplimiento:</strong>
-                                    {{ $version->compliance_at ? $date($version->compliance_at).' · '.$version->complianceOfficer?->fullName() : 'Pendiente ('.($this->complianceOfficerName ?? 'sin configurar en Datos de la empresa').')' }}
+                                    <strong>Oficial de cumplimiento{{ $version->is_pep ? '' : ' (observación)' }}:</strong>
+                                    {{ $version->compliance_at ? $signature($version->compliance_at, $version->complianceOfficer, $version->compliance_position) : 'Pendiente ('.($this->complianceOfficerName ?? 'sin configurar en Datos de la empresa').')' }}
                                     @if ($version->compliance_observations)<div class="small text-body-secondary">{{ $version->compliance_observations }}</div>@endif
                                 </li>
                             @endif
                             @foreach ($version->approvals as $approval)
                                 <li class="list-group-item" wire:key="approval-{{ $approval->id }}">
                                     <strong>Aprobación {{ mb_strtolower($approval->scope->label()) }}:</strong>
-                                    {{ $date($approval->approved_at) }} · {{ $approval->user?->fullName() }}
+                                    {{ $signature($approval->approved_at, $approval->user, $approval->user_position) }}
                                     @if ($approval->observations)<div class="small text-body-secondary">{{ $approval->observations }}</div>@endif
                                 </li>
                             @endforeach
-                            @foreach ($this->pendingApprovals as $scopeLabel => $processName)
-                                <li class="list-group-item text-body-secondary">
-                                    <strong>Aprobación {{ mb_strtolower($scopeLabel) }}:</strong> pendiente (director de {{ $processName }})
+                            @if ($version->hasManagementApproval())
+                                <li class="list-group-item">
+                                    <strong>Gerencia{{ $version->management_in_system ? '' : ' (firma física)' }}:</strong>
+                                    {{ $date($version->management_signed_on) }} ·
+                                    {{ $version->management_in_system ? 'aprobó' : 'registró' }}
+                                    {{ collect([$version->managementSigner?->fullName(), $version->management_position])->filter()->join(' · ') }}
+                                    @if ($version->management_observations)<div class="small text-body-secondary">{{ $version->management_observations }}</div>@endif
                                 </li>
+                            @elseif ($this->managementInPhysical)
+                                <li class="list-group-item text-body-secondary">
+                                    <strong>Gerencia (firma física):</strong> sin registrar. No impide la aprobación del director.
+                                </li>
+                            @endif
+                            @foreach ($this->pendingApprovals as $scopeLabel => $pendingApproval)
+                                @if ($pendingApproval['approvers'] === [])
+                                    {{-- Sin director ni reemplazo vigente nadie ve el botón Aprobar: se avisa la causa. --}}
+                                    <li class="list-group-item list-group-item-warning">
+                                        <strong>Aprobación {{ mb_strtolower($scopeLabel) }}:</strong> pendiente (director de {{ $pendingApproval['process'] }})
+                                        <div class="small">
+                                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                            El proceso {{ $pendingApproval['process'] }} no tiene director ni reemplazo vigente. Asígnalo en
+                                            Utilidades → Procesos para habilitar la aprobación.
+                                        </div>
+                                    </li>
+                                @else
+                                    <li class="list-group-item text-body-secondary">
+                                        <strong>Aprobación {{ mb_strtolower($scopeLabel) }}:</strong> pendiente (director de {{ $pendingApproval['process'] }})
+                                        · {{ implode(', ', $pendingApproval['approvers']) }}
+                                    </li>
+                                @endif
                             @endforeach
                             @if ($version->status === ProviderVersionStatus::Rejected)
                                 <li class="list-group-item list-group-item-danger">
@@ -548,13 +596,15 @@
                     <div class="col-lg-5">
                         @php
                             $canAct = $viewingDefault && (auth()->user()->can('submit', $linkage) || auth()->user()->can('verify', $linkage)
-                                || auth()->user()->can('certifyCompliance', $linkage) || auth()->user()->can('approve', $linkage)
+                                || auth()->user()->can('certifyCompliance', $linkage) || auth()->user()->can('addComplianceObservation', $linkage)
+                                || auth()->user()->can('approve', $linkage) || auth()->user()->can('approveAsManagement', $linkage)
+                                || auth()->user()->can('registerManagementApproval', $linkage)
                                 || auth()->user()->can('reject', $linkage) || auth()->user()->can('returnToDraft', $linkage));
                         @endphp
                         @if ($canAct)
                             @if ($version->status !== ProviderVersionStatus::Draft)
                                 <x-forms.textarea name="reviewNotes" id="review-notes" label="Observaciones" rows="3"
-                                                  hint="Obligatorias al rechazar; opcionales al firmar." />
+                                                  hint="Obligatorias al rechazar y en la observación de cumplimiento; opcionales al firmar." />
                             @endif
                             <div class="d-flex flex-wrap gap-2 mt-2">
                                 @can('submit', $linkage)
@@ -573,9 +623,24 @@
                                         <i class="bi bi-shield-check" aria-hidden="true"></i> Visto bueno de cumplimiento
                                     </button>
                                 @endcan
+                                @can('addComplianceObservation', $linkage)
+                                    <button type="button" wire:click="addComplianceObservation" wire:loading.attr="disabled" class="btn btn-outline-primary">
+                                        <i class="bi bi-chat-square-text" aria-hidden="true"></i> Observación de cumplimiento
+                                    </button>
+                                @endcan
                                 @can('approve', $linkage)
                                     <button type="button" wire:click="approve" wire:loading.attr="disabled" class="btn btn-success">
                                         <i class="bi bi-patch-check" aria-hidden="true"></i> Aprobar
+                                    </button>
+                                @endcan
+                                @can('approveAsManagement', $linkage)
+                                    <button type="button" wire:click="approveAsManagement" wire:loading.attr="disabled" class="btn btn-success">
+                                        <i class="bi bi-building-check" aria-hidden="true"></i> Aprobar como Gerencia
+                                    </button>
+                                @endcan
+                                @can('registerManagementApproval', $linkage)
+                                    <button type="button" wire:click="openManagementApproval" class="btn btn-outline-success">
+                                        <i class="bi bi-pen" aria-hidden="true"></i> Registrar firma de Gerencia
                                     </button>
                                 @endcan
                                 @can('reject', $linkage)
@@ -605,6 +670,24 @@
             </div>
         </div>
     @endif
+
+    {{-- Firma física de Gerencia (proveedor PEP, modo "en físico") --}}
+    <x-modal wire-model="showManagementApproval" title="Registrar firma de Gerencia" subtitle="Aprobación en físico de un proveedor PEP" icon="bi-pen" size="md">
+        <div class="modal-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <x-forms.input name="managementSignedOn" id="management-signed-on" label="Fecha de la firma" type="date" required />
+                </div>
+                <div class="col-12">
+                    <x-forms.textarea name="reviewNotes" id="management-notes" label="Observaciones" rows="3"
+                                      hint="Adjunta el formato firmado en la sección Anexos." />
+                </div>
+            </div>
+        </div>
+        <x-slot:footer>
+            <x-forms.modal-actions submit="registerManagementApproval" submit-label="Registrar" />
+        </x-slot:footer>
+    </x-modal>
 
     {{-- Condiciones que negocia el proceso --}}
     <x-modal wire-model="showTerms" title="Condiciones del proceso" :subtitle="'Vinculación '.mb_strtolower($scope->label())" icon="bi-cash-stack" size="md">

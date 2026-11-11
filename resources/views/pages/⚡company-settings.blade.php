@@ -6,7 +6,10 @@ use App\Livewire\Concerns\Notifies;
 use App\Livewire\Concerns\SearchesActiveUsers;
 use App\Livewire\Forms\CompanySettingsForm;
 use App\Models\User;
+use App\Enums\ProviderScope;
 use App\Settings\CompanySettings;
+use Modules\HumanResources\App\Models\HrCharacteristic;
+use Modules\HumanResources\App\Models\HrCharacteristicOption;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
@@ -33,6 +36,26 @@ new #[Layout('layouts.app')] #[Title('Datos de la empresa')] class extends Compo
     public function mount(): void
     {
         Gate::authorize('company-settings-read');
+    }
+
+    /**
+     * Cargos activos de Talento Humano para elegir los verificadores, más los ya elegidos.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function positions(): array
+    {
+        return HrCharacteristicOption::optionsFor(HrCharacteristic::POSITIONS_CODE);
+    }
+
+    /** Nombres de los cargos verificadores configurados para un tipo de proveedor. */
+    public function verifierNames(ProviderScope $scope): string
+    {
+        $ids = $this->settings->verifierPositions($scope);
+
+        return $ids === [] ? 'Cualquier cargo con el permiso de procesar'
+            : HrCharacteristicOption::withTrashed()->whereKey($ids)->orderBy('name')->pluck('name')->join(', ');
     }
 
     #[Computed]
@@ -149,6 +172,12 @@ new #[Layout('layouts.app')] #[Title('Datos de la empresa')] class extends Compo
             <x-document.field label="Oficial de cumplimiento" :value="$this->complianceOfficer?->fullName()" />
         </x-document.section>
 
+        <x-document.section title="Revisión del FO-300-01" icon="bi-pen">
+            <x-document.field label="Aprobación de Gerencia (PEP)" :value="$this->settings->managementApprovalMode()->label()" />
+            <x-document.field label="Verifican proveedores administrativos" :value="$this->verifierNames(ProviderScope::Administrative)" />
+            <x-document.field label="Verifican proveedores comerciales" :value="$this->verifierNames(ProviderScope::Commercial)" />
+        </x-document.section>
+
         @php
             $year = (int) now()->year;
             $wage = $this->settings->minimumWage($year);
@@ -220,7 +249,7 @@ new #[Layout('layouts.app')] #[Title('Datos de la empresa')] class extends Compo
             </x-forms.section>
 
             <x-forms.section title="Cumplimiento" icon="bi-shield-check"
-                             description="Revisa a los proveedores PEP antes de que Gerencia apruebe su vinculación.">
+                             description="Verifica a los proveedores PEP y puede dejar observaciones a los demás.">
                 <div class="col-md-10">
                     <x-forms.search-select name="form.compliance_officer_id" label="Oficial de cumplimiento" search="userSearch"
                                            select="selectUser" :results="$this->userResults" placeholder="Buscar usuario por nombre o identificación" />
@@ -230,6 +259,30 @@ new #[Layout('layouts.app')] #[Title('Datos de la empresa')] class extends Compo
                         <button type="button" wire:click="clearComplianceOfficer" class="btn btn-light w-100">Quitar</button>
                     @endif
                 </div>
+            </x-forms.section>
+
+            <x-forms.section title="Revisión del FO-300-01" icon="bi-pen"
+                             description="El director del proceso siempre aprueba. Sin cargos marcados, verifica cualquiera con el permiso de procesar.">
+                <div class="col-12">
+                    <x-forms.select name="form.provider_pep_management_approval" id="company-management-approval" label="Aprobación de Gerencia (PEP)" required
+                                    :options="\App\Enums\ManagementApprovalMode::options()"
+                                    hint="En físico, la firma de Gerencia se registra como información y no bloquea la aprobación del director." />
+                </div>
+                @foreach (['administrative' => 'Cargos que verifican proveedores administrativos', 'commercial' => 'Cargos que verifican proveedores comerciales'] as $key => $title)
+                    <div class="col-md-6" wire:key="verifiers-{{ $key }}">
+                        <label class="form-label">{{ $title }}</label>
+                        <div id="company-verifiers-{{ $key }}" class="border rounded p-2 overflow-auto" style="max-height: 14rem;">
+                            @foreach ($this->positions as $positionId => $positionName)
+                                <div class="form-check" wire:key="verifier-{{ $key }}-{{ $positionId }}">
+                                    <input id="verifier-{{ $key }}-{{ $positionId }}" type="checkbox" class="form-check-input"
+                                           value="{{ $positionId }}" wire:model="form.{{ $key }}_verifier_positions">
+                                    <label for="verifier-{{ $key }}-{{ $positionId }}" class="form-check-label">{{ $positionName }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        @error("form.{$key}_verifier_positions.*")<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+                @endforeach
             </x-forms.section>
         </div>
         <x-slot:footer>

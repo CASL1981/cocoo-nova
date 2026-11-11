@@ -19,12 +19,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $provider_version_id
  * @property ProviderScope $scope
  * @property int|null $user_id
+ * @property string|null $user_position
  * @property CarbonImmutable $approved_at
  * @property string|null $observations
  */
 final class ProviderVersionApproval extends Model
 {
-    protected $fillable = ['provider_version_id', 'scope', 'user_id', 'approved_at', 'observations'];
+    protected $fillable = ['provider_version_id', 'scope', 'user_id', 'user_position', 'approved_at', 'observations'];
 
     protected function casts(): array
     {

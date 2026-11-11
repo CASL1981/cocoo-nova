@@ -162,7 +162,8 @@ final class ProviderWorkflow
                 throw ValidationException::withMessages(['version' => 'Para enviar la versión deben aceptarse las declaraciones de veracidad, tratamiento de datos, información recibida y origen de fondos.']);
             }
 
-            $version->fill(['status' => ProviderVersionStatus::Verification, 'submitted_by' => $actor->id, 'submitted_at' => now()]);
+            $version->fill(['status' => ProviderVersionStatus::Verification, 'submitted_by' => $actor->id, 'submitted_at' => now(),
+                'submitted_position' => $actor->positionName()]);
         });
     }
 
@@ -174,6 +175,7 @@ final class ProviderWorkflow
                 'status' => $version->is_pep ? ProviderVersionStatus::Compliance : ProviderVersionStatus::Approval,
                 'verified_by' => $actor->id,
                 'verified_at' => now(),
+                'verified_position' => $actor->positionName(),
                 'verification_observations' => $observations,
             ]);
         });
@@ -187,9 +189,85 @@ final class ProviderWorkflow
                 'status' => ProviderVersionStatus::Approval,
                 'compliance_by' => $actor->id,
                 'compliance_at' => now(),
+                'compliance_position' => $actor->positionName(),
                 'compliance_observations' => $observations,
             ]);
         });
+    }
+
+    /**
+     * Observación del oficial de cumplimiento a un proveedor que no es PEP, cuando lo considere
+     * necesario. No es una etapa: la versión sigue en el mismo estado.
+     */
+    public function addComplianceObservation(ProviderVersion $version, User $actor, string $observations): ProviderVersion
+    {
+        return $this->transition($version, [ProviderVersionStatus::Verification, ProviderVersionStatus::Approval],
+            function (ProviderVersion $version) use ($actor, $observations): void {
+                if ($version->is_pep) {
+                    throw ValidationException::withMessages(['version' => 'Un proveedor PEP se revisa con el visto bueno de cumplimiento.']);
+                }
+
+                $version->fill([
+                    'compliance_by' => $actor->id,
+                    'compliance_at' => now(),
+                    'compliance_position' => $actor->positionName(),
+                    'compliance_observations' => $observations,
+                ]);
+            });
+    }
+
+    /**
+     * Aprobación de Gerencia en el sistema (PEP con el modo "en el sistema"). Si los directores ya
+     * aprobaron sus vinculaciones, la versión queda aprobada.
+     */
+    public function approveAsManagement(ProviderVersion $version, User $actor, ?string $observations): ProviderVersion
+    {
+        return DB::transaction(function () use ($version, $actor, $observations): ProviderVersion {
+            $version = $this->lock($version, [ProviderVersionStatus::Approval]);
+
+            if (! $this->rules->canApproveAsManagement($version, $actor)) {
+                throw ValidationException::withMessages(['version' => 'Esta versión no espera tu aprobación como Gerencia.']);
+            }
+
+            $version->fill($this->managementSignature($actor, true, today()->toDateString(), $observations))->save();
+
+            if ($this->rules->isFullyApproved($version)) {
+                $this->finalize($version, $actor);
+            }
+
+            return $version;
+        });
+    }
+
+    /**
+     * Registra la firma física de Gerencia de un proveedor PEP (modo "en físico"). Es informativa:
+     * no cambia el estado ni bloquea la aprobación del director.
+     */
+    public function registerPhysicalManagementApproval(ProviderVersion $version, User $actor, string $signedOn, ?string $observations): ProviderVersion
+    {
+        return $this->transition($version, [ProviderVersionStatus::Approval, ProviderVersionStatus::Approved],
+            function (ProviderVersion $version) use ($actor, $signedOn, $observations): void {
+                if (! $this->rules->acceptsPhysicalManagementApproval($version)) {
+                    throw ValidationException::withMessages(['version' => 'Esta versión no admite el registro de la firma física de Gerencia.']);
+                }
+
+                $version->fill($this->managementSignature($actor, false, $signedOn, $observations));
+            });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function managementSignature(User $actor, bool $inSystem, string $signedOn, ?string $observations): array
+    {
+        return [
+            'management_by' => $actor->id,
+            'management_position' => $actor->positionName(),
+            'management_in_system' => $inSystem,
+            'management_signed_on' => $signedOn,
+            'management_registered_at' => now(),
+            'management_observations' => $observations,
+        ];
     }
 
     /**
@@ -212,7 +290,7 @@ final class ProviderWorkflow
             foreach ($scopes as $scope) {
                 // Sobre la vigente puede existir la firma de una vinculación anterior del mismo proceso.
                 $version->approvals()->updateOrCreate(['scope' => $scope], [
-                    'user_id' => $actor->id, 'approved_at' => now(), 'observations' => $observations,
+                    'user_id' => $actor->id, 'user_position' => $actor->positionName(), 'approved_at' => now(), 'observations' => $observations,
                 ]);
             }
 
@@ -222,7 +300,7 @@ final class ProviderWorkflow
                     ->where('status', ProviderLinkageStatus::Pending)
                     ->whereIn('scope', $scopes)
                     ->update(['status' => ProviderLinkageStatus::Active, 'approved_by' => $actor->id, 'approved_at' => now()]);
-            } elseif ($this->rules->pendingScopes($version) === []) {
+            } elseif ($this->rules->isFullyApproved($version)) {
                 $this->finalize($version, $actor);
             }
 
@@ -270,12 +348,7 @@ final class ProviderWorkflow
         return $this->transition($version, [ProviderVersionStatus::Verification, ProviderVersionStatus::Compliance, ProviderVersionStatus::Approval],
             function (ProviderVersion $version): void {
                 $version->approvals()->delete();
-                $version->fill([
-                    'status' => ProviderVersionStatus::Draft,
-                    'submitted_by' => null, 'submitted_at' => null,
-                    'verified_by' => null, 'verified_at' => null, 'verification_observations' => null,
-                    'compliance_by' => null, 'compliance_at' => null, 'compliance_observations' => null,
-                ]);
+                $version->fill(['status' => ProviderVersionStatus::Draft, ...ProviderVersion::REVIEW_RESET]);
             });
     }
 
@@ -294,12 +367,7 @@ final class ProviderWorkflow
             }
 
             $version->approvals()->delete();
-            $version->fill([
-                'status' => ProviderVersionStatus::Draft,
-                'submitted_by' => null, 'submitted_at' => null,
-                'verified_by' => null, 'verified_at' => null, 'verification_observations' => null,
-                'compliance_by' => null, 'compliance_at' => null, 'compliance_observations' => null,
-            ]);
+            $version->fill(['status' => ProviderVersionStatus::Draft, ...ProviderVersion::REVIEW_RESET]);
 
             ProviderLinkage::query()->where('provider_id', $version->provider_id)
                 ->where('status', ProviderLinkageStatus::Rejected)

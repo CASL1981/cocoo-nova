@@ -12,7 +12,8 @@ use Illuminate\Validation\Rule;
 use Livewire\Form;
 
 /**
- * Captura en línea de un familiar o persona relacionada con un PEP.
+ * Captura en línea de un familiar PEP del grupo básico familiar: tipo y número de documento,
+ * nombres y apellidos y parentesco (todos obligatorios, como el formato).
  */
 final class ProviderPepRelativeForm extends Form
 {
@@ -26,26 +27,14 @@ final class ProviderPepRelativeForm extends Form
 
     public string $relationship = '';
 
-    public bool $is_pep = false;
-
-    public ?string $public_office = null;
-
-    public ?string $pep_starts_on = null;
-
-    public ?string $pep_ends_on = null;
-
     /** @return array<string, array<int, mixed>> */
     protected function rules(): array
     {
         return [
-            'document_type' => ['nullable', Rule::in(array_map(fn (IdentityDocumentType $type) => $type->value, IdentityDocumentType::forPeople()))],
-            'identification' => ['nullable', 'string', 'max:20', 'regex:/^[0-9A-Za-z]+$/'],
+            'document_type' => ['required', Rule::in(array_map(fn (IdentityDocumentType $type) => $type->value, IdentityDocumentType::forPeople()))],
+            'identification' => ['required', 'string', 'max:20', 'regex:/^[0-9A-Za-z]+$/'],
             'name' => ['required', 'string', 'min:3', 'max:255'],
             'relationship' => ['required', Rule::in(CharacteristicOption::forCharacteristicCode(ProviderVersion::RELATIONSHIP_CHARACTERISTIC_CODE)->keys()->all())],
-            'is_pep' => ['boolean'],
-            'public_office' => [$this->is_pep ? 'required' : 'nullable', 'string', 'max:150'],
-            'pep_starts_on' => ['nullable', 'date', 'before_or_equal:today'],
-            'pep_ends_on' => ['nullable', 'date', 'after_or_equal:pep_starts_on'],
         ];
     }
 
@@ -53,8 +42,8 @@ final class ProviderPepRelativeForm extends Form
     protected function validationAttributes(): array
     {
         return [
-            'document_type' => 'tipo de documento', 'identification' => 'identificación', 'name' => 'nombre',
-            'relationship' => 'parentesco', 'public_office' => 'cargo PEP', 'pep_starts_on' => 'inicio del cargo', 'pep_ends_on' => 'fin del cargo',
+            'document_type' => 'tipo de documento', 'identification' => 'número de documento', 'name' => 'nombres y apellidos',
+            'relationship' => 'parentesco',
         ];
     }
 

@@ -73,6 +73,9 @@
                         <td class="text-nowrap">
                             @php $formStatus = $provider->formStatus(); @endphp
                             <span class="badge {{ $formStatus->badgeClass() }}">{{ $formStatus->label() }}</span>
+                            @if ($formStatus === \App\Enums\ProviderFormStatus::None && $provider->latestVersion?->status === \App\Enums\ProviderVersionStatus::Approved)
+                                <span class="badge bg-light text-body-secondary border ms-1" title="Formato de un año anterior, no vigente">Último {{ $provider->latestVersion->created_at->year }}</span>
+                            @endif
                             @if ($open && $formStatus !== \App\Enums\ProviderFormStatus::InProgress)
                                 <span class="badge {{ $open->status->badgeClass() }} ms-1">V{{ $open->number }} · {{ $open->status->label() }}</span>
                             @endif

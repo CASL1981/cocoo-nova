@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Livewire\Forms;
 
-use App\Enums\CompanyType;
 use App\Enums\GeographicLevel;
 use App\Enums\IdentityDocumentType;
 use App\Enums\PersonType;
@@ -146,8 +145,21 @@ final class ProviderForm extends Form
 
     public bool $has_pep_relationship = false;
 
+    // Persona PEP con quien tiene relación (solo si has_pep_relationship).
+    public ?string $pep_relation_name = null;
+
+    public ?string $pep_relation_identification = null;
+
+    public ?string $pep_relation_office = null;
+
+    public ?string $pep_relation_starts_on = null;
+
+    public ?string $pep_relation_ends_on = null;
+
+    public ?string $pep_relation_relationship = null;
+
     // Contactos y declaraciones.
-    /** @var array<string, array{name: ?string, phone: ?string, email: ?string}> */
+    /** @var array<string, array{name: ?string, job_title: ?string, phone: ?string, email: ?string}> */
     public array $contacts = [];
 
     public ?string $dispatch_schedule = null;
@@ -182,7 +194,7 @@ final class ProviderForm extends Form
 
         $this->contacts = self::emptyContacts();
         foreach ($version->contacts as $contact) {
-            $this->contacts[$contact->role->value] = $contact->only(['name', 'phone', 'email']);
+            $this->contacts[$contact->role->value] = $contact->only(['name', 'job_title', 'phone', 'email']);
         }
     }
 
@@ -194,6 +206,14 @@ final class ProviderForm extends Form
     public function isNatural(): bool
     {
         return $this->personType() === PersonType::Natural;
+    }
+
+    /**
+     * El cargo público y sus fechas se piden si administra recursos públicos, si se declara PEP o ambas.
+     */
+    public function requiresPublicOffice(): bool
+    {
+        return $this->manages_public_resources || $this->declares_pep;
     }
 
     /** Documento que exige nacionalidad (cédula de extranjería o pasaporte). */
@@ -253,7 +273,7 @@ final class ProviderForm extends Form
             'accepts_electronic_means' => ['boolean'],
 
             'tax_regime' => [$requiredLegal, 'nullable', Rule::in($this->options(ProviderVersion::TAX_REGIME_CHARACTERISTIC_CODE))],
-            'company_type' => [$requiredLegal, 'nullable', Rule::enum(CompanyType::class)],
+            'company_type' => [$requiredLegal, 'nullable', Rule::in($this->options(ProviderVersion::COMPANY_TYPE_CHARACTERISTIC_CODE))],
             'legal_representative_name' => [$requiredLegal, 'nullable', 'string', 'max:255'],
             'legal_representative_document_type' => [$requiredLegal, 'nullable', Rule::in(array_map(fn (IdentityDocumentType $type) => $type->value, IdentityDocumentType::forLegalRepresentative()))],
             'legal_representative_identification' => [$requiredLegal, 'nullable', 'string', 'max:20', 'regex:/^[0-9A-Za-z]+$/'],
@@ -271,13 +291,22 @@ final class ProviderForm extends Form
 
             'manages_public_resources' => ['boolean'],
             'declares_pep' => ['boolean'],
-            'public_office' => [$this->declares_pep ? 'required' : 'nullable', 'string', 'max:150'],
-            'pep_starts_on' => [$this->declares_pep ? 'required' : 'nullable', 'date', 'before_or_equal:today'],
+            'public_office' => [$this->requiresPublicOffice() ? 'required' : 'nullable', 'string', 'max:150'],
+            'pep_starts_on' => [$this->requiresPublicOffice() ? 'required' : 'nullable', 'date', 'before_or_equal:today'],
             'pep_ends_on' => ['nullable', 'date', 'after_or_equal:pep_starts_on'],
             'has_pep_relationship' => ['boolean'],
+            // Datos del PEP con quien tiene relación: obligatorios si responde Sí (el fin es opcional: vigente).
+            'pep_relation_name' => [$this->has_pep_relationship ? 'required' : 'nullable', 'string', 'min:3', 'max:255'],
+            'pep_relation_identification' => [$this->has_pep_relationship ? 'required' : 'nullable', 'string', 'max:20', 'regex:/^[0-9A-Za-z]+$/'],
+            'pep_relation_office' => [$this->has_pep_relationship ? 'required' : 'nullable', 'string', 'max:150'],
+            'pep_relation_starts_on' => [$this->has_pep_relationship ? 'required' : 'nullable', 'date', 'before_or_equal:today'],
+            'pep_relation_ends_on' => ['nullable', 'date', 'after_or_equal:pep_relation_starts_on'],
+            'pep_relation_relationship' => [$this->has_pep_relationship ? 'required' : 'nullable', Rule::in($this->options(ProviderVersion::RELATIONSHIP_CHARACTERISTIC_CODE))],
 
             'contacts' => ['array'],
             'contacts.*.name' => ['nullable', 'string', 'max:150'],
+            // El cargo es obligatorio en todo contacto diligenciado.
+            'contacts.*.job_title' => ['nullable', 'required_with:contacts.*.name,contacts.*.phone,contacts.*.email', 'string', 'max:100'],
             'contacts.*.phone' => ['nullable', 'string', 'max:50'],
             'contacts.*.email' => ['nullable', 'email:rfc', 'max:150'],
             'dispatch_schedule' => ['nullable', 'string', 'max:1000'],
@@ -296,6 +325,7 @@ final class ProviderForm extends Form
             'identification.unique' => 'Ya existe un proveedor con esta identificación: vincúlelo a su proceso.',
             'identification.regex' => 'La identificación solo admite letras y números, sin puntos, guiones ni dígito de verificación.',
             'legal_representative_identification.regex' => 'La identificación solo admite letras y números.',
+            'pep_relation_identification.regex' => 'La identificación solo admite letras y números.',
             'municipality_id.exists' => 'El municipio no pertenece al departamento elegido.',
             'birth_municipality_id.exists' => 'El municipio no pertenece al departamento elegido.',
         ];
@@ -318,14 +348,17 @@ final class ProviderForm extends Form
             'total_assets' => 'total de activos', 'total_liabilities' => 'total de pasivos', 'total_equity' => 'total de patrimonio',
             'monthly_income' => 'ingresos mensuales', 'other_income' => 'otros ingresos', 'other_income_activity' => 'actividad de otros ingresos',
             'foreign_currency_detail' => 'operaciones en moneda extranjera', 'public_office' => 'cargo público',
-            'pep_starts_on' => 'inicio del cargo PEP', 'pep_ends_on' => 'fin del cargo PEP', 'contacts.*.email' => 'correo del contacto',
+            'pep_starts_on' => 'inicio del cargo PEP', 'pep_ends_on' => 'fin del cargo PEP',
+            'pep_relation_name' => 'nombre del PEP', 'pep_relation_identification' => 'identificación del PEP',
+            'pep_relation_office' => 'cargo del PEP', 'pep_relation_starts_on' => 'inicio en el cargo del PEP',
+            'pep_relation_ends_on' => 'fin en el cargo del PEP', 'pep_relation_relationship' => 'relación con el PEP', 'contacts.*.email' => 'correo del contacto', 'contacts.*.job_title' => 'cargo del contacto',
         ];
     }
 
     /**
      * Datos validados y limpios: los campos del formulario y los contactos por separado.
      *
-     * @return array{data: array<string, mixed>, contacts: array<string, array{name: ?string, phone: ?string, email: ?string}>}
+     * @return array{data: array<string, mixed>, contacts: array<string, array{name: ?string, job_title: ?string, phone: ?string, email: ?string}>}
      */
     public function payload(): array
     {
@@ -339,12 +372,12 @@ final class ProviderForm extends Form
     /**
      * Un contacto vacío por cada cargo fijo del formato.
      *
-     * @return array<string, array{name: ?string, phone: ?string, email: ?string}>
+     * @return array<string, array{name: ?string, job_title: ?string, phone: ?string, email: ?string}>
      */
     public static function emptyContacts(): array
     {
         return collect(ProviderContactRole::cases())
-            ->mapWithKeys(fn (ProviderContactRole $role) => [$role->value => ['name' => null, 'phone' => null, 'email' => null]])
+            ->mapWithKeys(fn (ProviderContactRole $role) => [$role->value => ['name' => null, 'job_title' => null, 'phone' => null, 'email' => null]])
             ->all();
     }
 

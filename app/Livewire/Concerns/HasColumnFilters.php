@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  * Filtros por columna derivados de columns(): aplica, limpia y reinicia
  * la paginación sin listar cada propiedad de filtro a mano.
  *
- * Requiere que columns() devuelva: campo => ['label', 'filter', 'type'?, 'options'?].
+ * Requiere que columns() devuelva: campo => ['label', 'filter', 'type'?, 'options'?, 'query'?].
+ * 'query' nombra un método del componente (Builder $query, string $value) para columnas calculadas.
  */
 trait HasColumnFilters
 {
@@ -76,6 +77,13 @@ trait HasColumnFilters
             $value = ($meta['filter'] ?? null) ? $this->{$meta['filter']} : '';
 
             if ($value === '') {
+                continue;
+            }
+
+            // Columnas calculadas (sin campo en BD): el componente aplica el filtro en su método.
+            if (isset($meta['query'])) {
+                $this->{$meta['query']}($query, $value);
+
                 continue;
             }
 

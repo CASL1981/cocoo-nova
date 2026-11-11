@@ -657,6 +657,21 @@
     background-color: rgba(0, 0, 0, 0.55);
 }
 
+/* Ícono de texto completo junto a una casilla (<x-forms.checkbox info>) o una declaración del detalle. */
+.form-check-info,
+.provider-declaration-info {
+    cursor: help;
+    font-size: 0.875em;
+}
+
+/* Tooltip de párrafos largos (<x-tooltip wide>, x-tooltip.wide): declaraciones del FO-300-01. */
+.tooltip-wide .tooltip-inner {
+    max-width: min(34rem, calc(100vw - 2rem));
+    padding: 0.625rem 0.75rem;
+    text-align: left;
+    line-height: 1.45;
+}
+
 .app-modal .modal-content {
     border: 0;
     box-shadow: var(--bs-box-shadow-lg, var(--bs-box-shadow));

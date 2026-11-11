@@ -64,7 +64,10 @@ Cuando un proveedor ya aprobado tiene una actualización en curso, la columna mu
 
 Los FO-300-01 de 2024 y 2025 se cargaron desde el sistema anterior como versiones aprobadas de esos años. Sirven de consulta, pero **no hacen vigente el formato**: si el proveedor no tiene un formato aprobado en Cocoo Nova, sigue como proveedor básico (**Sin FO-300-01**).
 
-- Su ficha muestra el aviso de proveedor básico con la nota "Tiene formatos de años anteriores: consúltelos en «Ver años»".
+Los proveedores que actualizaron en **2026** (formato físico revisado) sí tienen ese formato **Vigente**, con su próxima actualización un año después de la fecha de 2026. Ese formato no trae información financiera, PEP ni declaraciones: se completan en la próxima actualización.
+
+- En el listado, la columna **FO-300-01** muestra **Sin FO-300-01** y al lado el año del último formato cargado, por ejemplo **Último 2025**.
+- Su ficha abre directamente el formato del año más reciente, en solo lectura, con el aviso de que no está vigente.
 - Conserva el botón **Editar datos básicos**.
 - Al usar **Diligenciar FO-300-01**, el Borrador se llena con los datos del año más reciente, para que solo corrijas lo que cambió.
 
@@ -86,7 +89,7 @@ Un proveedor es **PEP** (persona expuesta políticamente) si responde "sí" a cu
 - Es una persona expuesta políticamente.
 - Tiene relación con un PEP.
 
-Un cargo público que terminó hace más de 2 años ya no cuenta (Decreto 830 de 2021). Un proveedor PEP pasa además por el oficial de cumplimiento y lo aprueba Gerencia.
+Un cargo público que terminó hace más de 2 años ya no cuenta (Decreto 830 de 2021). Un proveedor PEP pasa además por el oficial de cumplimiento; lo aprueba el director de su proceso y la Gerencia firma su aprobación.
 
 ## Actualización anual
 
@@ -110,7 +113,7 @@ Abre **Administrativo → Proveedores** o **Compras → Proveedores**. Las colum
    - **Activa:** se le puede comprar.
    - **Inactiva:** suspendido por el proceso.
    - **Rechazada:** su formato fue rechazado.
-3. **FO-300-01:** situación del formato (Sin FO-300-01, En trámite, Vigente o Vencido). La etiqueta amarilla **Requerido** indica que se superó el tope sin formato. Al ordenar por esta columna, los proveedores quedan en ese orden: Sin FO-300-01, En trámite, Vigente y Vencido.
+3. **FO-300-01:** situación del formato (Sin FO-300-01, En trámite, Vigente o Vencido). La etiqueta amarilla **Requerido** indica que se superó el tope sin formato. Al ordenar por esta columna, los proveedores quedan en ese orden: Sin FO-300-01, En trámite, Vigente y Vencido. Para ver solo una situación, por ejemplo los **Vencidos**, elígela en el filtro de la columna, igual que en Persona, Riesgo y Vinculación.
 4. **Próx. actualización:** fecha de la actualización anual. En rojo, con un ícono de alerta, si ya venció.
 
 Las filas amarillas son vinculaciones Inactivas o Rechazadas y las rojas, eliminadas. Para buscar, filtrar, ordenar, exportar o consultar la auditoría, sigue [Cómo usar los listados](guide:standard-lists). Para abrir el detalle de un proveedor, haz clic en su nombre.

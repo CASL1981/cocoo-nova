@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Providers;
 
 use App\Enums\PersonType;
+use App\Enums\ProviderFormStatus;
 use App\Enums\ProviderLinkageStatus;
 use App\Enums\ProviderScope;
 use App\Enums\ProviderVersionStatus;
@@ -57,6 +58,9 @@ abstract class ProviderIndex extends Component
     #[Session(key: 'providers.index.filterStatus-{scopeKey}-{authId}')]
     public string $filterStatus = '';
 
+    #[Session(key: 'providers.index.filterFormStatus-{scopeKey}-{authId}')]
+    public string $filterFormStatus = '';
+
     #[Session(key: 'providers.index.perPage-{scopeKey}-{authId}')]
     public int $perPage = 10;
 
@@ -105,7 +109,7 @@ abstract class ProviderIndex extends Component
             ->join('providers', 'providers.id', '=', 'provider_linkages.provider_id')
             ->select('provider_linkages.*')
             ->where('provider_linkages.scope', $this->scope())
-            ->with(['provider.openVersion']);
+            ->with(['provider.openVersion', 'provider.latestVersion']);
 
         return $this->applyColumnFilters($query);
     }
@@ -225,6 +229,37 @@ abstract class ProviderIndex extends Component
     }
 
     /**
+     * Filtro de la columna FO-300-01 con las mismas reglas de Provider::formStatus(): sin versión
+     * vigente es En trámite si tiene una versión abierta (si no, Sin FO-300-01); con versión vigente
+     * es Vencido si llegó la fecha de actualización (si no, Vigente). Un valor desconocido no filtra.
+     *
+     * @param  Builder<ProviderLinkage>  $query
+     */
+    protected function filterByFormStatus(Builder $query, string $value): void
+    {
+        $status = ProviderFormStatus::tryFrom($value);
+
+        if ($status === null) {
+            return;
+        }
+
+        $openVersion = fn ($sub) => $sub->selectRaw('1')->from('provider_versions')
+            ->whereColumn('provider_versions.provider_id', 'providers.id')
+            ->whereNull('provider_versions.deleted_at')
+            ->whereIn('provider_versions.status', ProviderVersionStatus::open());
+        $today = today()->toDateString();
+
+        match ($status) {
+            ProviderFormStatus::None => $query->whereNull('providers.current_version_id')->whereNotExists($openVersion),
+            ProviderFormStatus::InProgress => $query->whereNull('providers.current_version_id')->whereExists($openVersion),
+            ProviderFormStatus::Current => $query->whereNotNull('providers.current_version_id')
+                ->where(fn (Builder $q) => $q->whereNull('providers.next_update_on')->orWhereDate('providers.next_update_on', '>', $today)),
+            ProviderFormStatus::Expired => $query->whereNotNull('providers.current_version_id')
+                ->whereDate('providers.next_update_on', '<=', $today),
+        };
+    }
+
+    /**
      * La columna FO-300-01 se ordena por la situación del formato (ProviderFormStatus, que se
      * calcula): Sin FO-300-01, En trámite, Vigente y Vencido; a igual situación, por nombre.
      *
@@ -249,7 +284,7 @@ abstract class ProviderIndex extends Component
                 WHEN providers.current_version_id IS NULL THEN
                     CASE WHEN EXISTS (SELECT 1 FROM provider_versions pv WHERE pv.provider_id = providers.id
                         AND pv.deleted_at IS NULL AND pv.status IN ({$placeholders})) THEN 1 ELSE 0 END
-                WHEN providers.next_update_on IS NOT NULL AND providers.next_update_on <= ? THEN 3
+                WHEN providers.next_update_on IS NOT NULL AND DATE(providers.next_update_on) <= ? THEN 3
                 ELSE 2
             END {$direction}",
             [...$open, today()->toDateString()],
@@ -269,7 +304,8 @@ abstract class ProviderIndex extends Component
             'providers.person_type' => ['label' => 'Persona', 'filter' => 'filterPersonType', 'type' => 'select', 'options' => PersonType::options()],
             'providers.risk_level' => ['label' => 'Riesgo', 'filter' => 'filterRisk', 'type' => 'select', 'options' => RiskLevel::options()],
             'provider_linkages.status' => ['label' => 'Vinculación', 'filter' => 'filterStatus', 'type' => 'select', 'options' => ProviderLinkageStatus::options()],
-            'open_version' => ['label' => 'FO-300-01', 'filter' => null],
+            'open_version' => ['label' => 'FO-300-01', 'filter' => 'filterFormStatus', 'type' => 'select',
+                'options' => ProviderFormStatus::options(), 'query' => 'filterByFormStatus'],
             'provider_linkages.payment_condition' => ['label' => 'Condición de pago', 'width' => 'sm', 'filter' => null],
             'providers.next_update_on' => ['label' => 'Próx. actualización', 'filter' => null],
         ];

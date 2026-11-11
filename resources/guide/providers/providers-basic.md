@@ -82,11 +82,12 @@ Algunos proveedores tienen el FO-300-01 de 2024 o 2025 cargado desde el sistema 
 
 ![Ficha de un proveedor básico con formatos de años anteriores](images/providers-basic/08-historical-years.png)
 
+La ficha abre directamente el formato del año más reciente, en solo lectura:
+
 1. **Editar datos básicos** sigue disponible.
 2. **Diligenciar FO-300-01** abre el Borrador prellenado con el formato del año más reciente, no solo con los datos básicos.
-3. **Ver años (N)** abre la tarjeta de años.
-4. **Años del FO-300-01** muestra una caja por año. Haz clic en una para consultar ese formato en solo lectura (ver [Verificar, aprobar o rechazar](guide:providers-review)).
-5. El aviso azul agrega "Tiene formatos de años anteriores: consúltelos en «Ver años»".
+3. **Años del FO-300-01** muestra una caja por año, con el más reciente elegido. Haz clic en otra para consultar ese año (ver [Verificar, aprobar o rechazar](guide:providers-review)).
+4. El aviso azul indica que estás consultando un formato de un año anterior, que no está vigente, y que el proveedor sigue trabajando como básico.
 
 ## Pasar de básico a FO-300-01
 

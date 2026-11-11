@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Settings;
 
+use App\Enums\ManagementApprovalMode;
+use App\Enums\ProviderScope;
 use Spatie\LaravelSettings\Settings;
 
 /**
@@ -32,7 +34,7 @@ final class CompanySettings extends Settings
     // Ruta del logo en el disco public; null si no se ha cargado.
     public ?string $logo_path;
 
-    // Usuario oficial de cumplimiento: revisa a los proveedores PEP antes de que Gerencia los apruebe.
+    // Usuario oficial de cumplimiento: verifica a los proveedores PEP y puede observar a los demás.
     public ?int $compliance_officer_id;
 
     /**
@@ -45,6 +47,16 @@ final class CompanySettings extends Settings
     // Múltiplo del SMMLV desde el cual una orden (o el acumulado mensual) exige el FO-300-01.
     public int $provider_form_wage_multiplier;
 
+    // Cómo aprueba la Gerencia a los proveedores PEP: physical (registro informativo) o system (ManagementApprovalMode).
+    public string $provider_pep_management_approval;
+
+    /**
+     * Cargos (ids de Talento Humano → Cargos) que verifican cada tipo de proveedor; vacío = cualquier cargo.
+     *
+     * @phpstan-var array<string, list<int>>
+     */
+    public array $provider_verifier_positions;
+
     public static function group(): string
     {
         return 'company';
@@ -54,6 +66,21 @@ final class CompanySettings extends Settings
     public function minimumWage(int $year): ?int
     {
         return $this->minimum_wages[$year] ?? null;
+    }
+
+    public function managementApprovalMode(): ManagementApprovalMode
+    {
+        return ManagementApprovalMode::tryFrom($this->provider_pep_management_approval) ?? ManagementApprovalMode::Physical;
+    }
+
+    /**
+     * Cargos que verifican el tipo de proveedor indicado; vacío = sin restricción por cargo.
+     *
+     * @return list<int>
+     */
+    public function verifierPositions(ProviderScope $scope): array
+    {
+        return array_map('intval', $this->provider_verifier_positions[$scope->value] ?? []);
     }
 
     /** URL pública del logo, o null si no hay logo cargado. */

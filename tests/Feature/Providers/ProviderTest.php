@@ -7,7 +7,9 @@ use App\Enums\ProviderLinkageStatus;
 use App\Enums\ProviderScope;
 use App\Enums\ProviderVersionStatus;
 use App\Enums\RiskLevel;
+use App\Enums\Status;
 use App\Livewire\Providers\ProviderFormModal;
+use App\Models\Characteristic;
 use App\Models\EconomicActivity;
 use App\Models\GeographicLocation;
 use App\Models\Process;
@@ -15,6 +17,7 @@ use App\Models\ProcessSubstitution;
 use App\Models\Provider;
 use App\Models\ProviderLinkage;
 use App\Models\ProviderVersion;
+use App\Models\ProviderVersionDocument;
 use App\Models\User;
 use App\Settings\CompanySettings;
 use Database\Seeders\CharacteristicOptionSeeder;
@@ -98,15 +101,23 @@ it('registra una persona jurídica en Borrador con su vinculación pendiente', f
         ->set('form.country_id', (string) $this->catalog['country']->id)
         ->set('form.economic_activity_id', (string) $this->catalog['activity']->id)
         ->set('form.tax_regime', 'Responsable de IVA')
-        ->set('form.company_type', 'private')
+        // Tipo de empresa desde Características (incluye Unión temporal) y RL con NIT.
+        ->set('form.company_type', 'Unión temporal')
         ->set('form.legal_representative_name', 'Ana Pérez')
-        ->set('form.legal_representative_document_type', 'CC')
+        ->set('form.legal_representative_document_type', 'NIT')
         ->set('form.legal_representative_identification', '12345678')
         ->set('form.monthly_income', '50000000')
         ->set('form.total_assets', '900000000')
         ->set('form.total_liabilities', '100000000')
         ->set('form.total_equity', '800000000')
+        ->set('form.has_foreign_accounts', true)
+        // Sin marcar "Tiene relación con un PEP", los datos del PEP relacionado no se guardan.
+        ->set('form.pep_relation_name', 'Dato sobrante')
         ->set('form.contacts.billing.name', 'Facturación SAS')
+        // El cargo es obligatorio en todo contacto diligenciado.
+        ->call('save')
+        ->assertHasErrors(['form.contacts.billing.job_title' => 'required_with'])
+        ->set('form.contacts.billing.job_title', 'Auxiliar contable')
         ->call('save')
         ->assertHasNoErrors()
         ->assertRedirect();
@@ -116,7 +127,13 @@ it('registra una persona jurídica en Borrador con su vinculación pendiente', f
 
     expect($provider->risk_level)->toBe(RiskLevel::Low)
         ->and($version->status)->toBe(ProviderVersionStatus::Draft)
+        ->and($version->company_type)->toBe('Unión temporal')
+        ->and($version->legal_representative_document_type?->value)->toBe('NIT')
+        // Cuentas en moneda extranjera aplica también a persona jurídica.
+        ->and($version->has_foreign_accounts)->toBeTrue()
+        ->and($version->pep_relation_name)->toBeNull()
         ->and($version->contacts()->count())->toBe(1)
+        ->and($version->contacts()->value('job_title'))->toBe('Auxiliar contable')
         ->and($provider->linkages()->first()->status)->toBe(ProviderLinkageStatus::Pending)
         ->and($provider->linkages()->first()->scope)->toBe(ProviderScope::Commercial);
 });
@@ -208,7 +225,7 @@ it('acepta la aprobación de un reemplazo vigente del director', function (): vo
     expect($linkage->fresh()->status)->toBe(ProviderLinkageStatus::Active);
 });
 
-it('pasa un PEP por el oficial de cumplimiento y lo aprueba Gerencia', function (): void {
+it('pasa un PEP por el oficial de cumplimiento y lo aprueba el director del proceso', function (): void {
     $linkage = providerInStatus(ProviderVersionStatus::Verification, pep: true);
     $officer = userWith('commercial-providers-read');
     $settings = app(CompanySettings::class);
@@ -226,13 +243,13 @@ it('pasa un PEP por el oficial de cumplimiento y lo aprueba Gerencia', function 
         ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage])
         ->call('certifyCompliance');
 
-    // Un PEP no lo aprueba el director Comercial sino Gerencia.
-    Livewire::actingAs(directorOf('Comercial', ['commercial-providers-read']))
+    // Siempre aprueba el director del proceso; la Gerencia firma en físico (por defecto) y no bloquea.
+    Livewire::actingAs(directorOf('Gerencia', ['commercial-providers-read']))
         ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage])
         ->call('approve')
         ->assertForbidden();
 
-    Livewire::actingAs(directorOf('Gerencia', ['commercial-providers-read']))
+    Livewire::actingAs(directorOf('Comercial', ['commercial-providers-read']))
         ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage])
         ->call('approve');
 
@@ -317,13 +334,40 @@ it('registra accionistas sin superar el 100 % de participación', function (): v
     expect($linkage->provider->versions()->first()->shareholders()->count())->toBe(1);
 });
 
+it('exige el representante legal solo al accionista con NIT', function (): void {
+    $linkage = providerInStatus(ProviderVersionStatus::Draft);
+    $page = Livewire::actingAs(userWith(['commercial-providers-read', 'commercial-providers-update']))
+        ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage]);
+
+    // NIT = persona jurídica: nombre y cédula del representante obligatorios.
+    $page->set('shareholderForm.document_type', 'NIT')->set('shareholderForm.identification', '900111222')
+        ->set('shareholderForm.name', 'Inversiones Socias SAS')->set('shareholderForm.ownership_percentage', '30')
+        ->assertSee('Cédula del representante')
+        ->call('addShareholder')
+        ->assertHasErrors(['shareholderForm.legal_representative_name' => 'required', 'shareholderForm.legal_representative_identification' => 'required'])
+        ->set('shareholderForm.legal_representative_name', 'Ana Gómez')->set('shareholderForm.legal_representative_identification', '1065000111')
+        ->call('addShareholder')->assertHasNoErrors();
+
+    // Otro documento = persona natural: al cambiar el tipo se descarta y no se admite representante.
+    $page->set('shareholderForm.document_type', 'NIT')->set('shareholderForm.legal_representative_name', 'Sobrante')
+        ->set('shareholderForm.document_type', 'CC')
+        ->assertSet('shareholderForm.legal_representative_name', null)
+        ->assertDontSee('Cédula del representante')
+        ->set('shareholderForm.legal_representative_identification', '123')
+        ->set('shareholderForm.identification', '10777888')->set('shareholderForm.name', 'Carlos Pérez')->set('shareholderForm.ownership_percentage', '20')
+        ->call('addShareholder')->assertHasErrors(['shareholderForm.legal_representative_identification' => 'prohibited']);
+
+    $shareholder = $linkage->provider->versions()->first()->shareholders()->firstOrFail();
+    expect($shareholder->legal_representative_identification)->toBe('1065000111');
+});
+
 it('carga y descarga anexos en el disco privado', function (): void {
     Storage::fake('local');
     $linkage = providerInStatus(ProviderVersionStatus::Draft);
 
     $page = Livewire::actingAs(userWith(['commercial-providers-read', 'commercial-providers-update']))
         ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage])
-        ->set('documentForm.type', 'chamber_of_commerce')
+        ->set('documentForm.type', ProviderVersionDocument::CHAMBER_OF_COMMERCE_TYPE)
         ->set('documentForm.file', UploadedFile::fake()->create('camara.pdf', 100, 'application/pdf'))
         ->call('addDocument')
         ->assertHasErrors(['documentForm.issued_on'])
@@ -335,6 +379,27 @@ it('carga y descarga anexos en el disco privado', function (): void {
     Storage::disk('local')->assertExists($document->path);
 
     $page->call('downloadDocument', $document->id)->assertFileDownloaded('camara.pdf');
+});
+
+it('acepta los tipos de anexo que se agregan en Características y rechaza los inactivos', function (): void {
+    Storage::fake('local');
+    $linkage = providerInStatus(ProviderVersionStatus::Draft);
+    $characteristic = Characteristic::where('code', ProviderVersionDocument::TYPE_CHARACTERISTIC_CODE)->firstOrFail();
+    $characteristic->options()->create(['name' => 'Certificación bancaria', 'status' => Status::Active]);
+    $characteristic->options()->where('name', 'Otro')->update(['status' => Status::Inactive]);
+
+    $page = Livewire::actingAs(userWith(['commercial-providers-read', 'commercial-providers-update']))
+        ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage])
+        ->set('documentForm.type', 'Otro')
+        ->set('documentForm.file', UploadedFile::fake()->create('otro.pdf', 50, 'application/pdf'))
+        ->call('addDocument')
+        ->assertHasErrors(['documentForm.type' => 'in'])
+        // Un tipo nuevo no exige fecha de expedición (solo la cámara de comercio).
+        ->set('documentForm.type', 'Certificación bancaria')
+        ->call('addDocument')
+        ->assertHasNoErrors();
+
+    expect($linkage->provider->versions()->first()->documents()->value('type'))->toBe('Certificación bancaria');
 });
 
 it('oculta los datos sensibles a quien solo puede leer', function (): void {
@@ -420,4 +485,55 @@ it('ofrece abrir la actualización al editar un proveedor aprobado', function ()
         ->assertSet('form.identification', $version->identification);
 
     expect($version->provider->openVersion()->firstOrFail()->number)->toBe(2);
+});
+
+it('pide el cargo público y su inicio si administra recursos públicos, se declara PEP o ambas', function (): void {
+    $form = fn () => Livewire::actingAs(userWith(['commercial-providers-read', 'commercial-providers-create']))
+        ->test(ProviderFormModal::class, ['scope' => 'commercial'])
+        ->call('openCreate')
+        ->set('form.person_type', 'legal');
+
+    foreach ([['manages_public_resources'], ['declares_pep'], ['manages_public_resources', 'declares_pep']] as $answers) {
+        $component = $form();
+        foreach ($answers as $answer) {
+            $component->set("form.{$answer}", true);
+        }
+
+        $component->assertSee('Cargo público')
+            ->call('save')
+            ->assertHasErrors(['form.public_office' => 'required', 'form.pep_starts_on' => 'required']);
+    }
+
+    // Sin ninguna de las dos respuestas, el cargo no se pide.
+    $form()->assertDontSee('Cargo público')->call('save')->assertHasNoErrors(['form.public_office', 'form.pep_starts_on']);
+});
+
+it('pide los datos del PEP con quien tiene relación y solo documento, nombre y parentesco del familiar PEP', function (): void {
+    Livewire::actingAs(userWith(['commercial-providers-read', 'commercial-providers-create']))
+        ->test(ProviderFormModal::class, ['scope' => 'commercial'])
+        ->call('openCreate')
+        ->set('form.has_pep_relationship', true)
+        ->assertSee('Identificación del PEP')
+        ->call('save')
+        ->assertHasErrors([
+            'form.pep_relation_name' => 'required', 'form.pep_relation_identification' => 'required',
+            'form.pep_relation_office' => 'required', 'form.pep_relation_starts_on' => 'required',
+            'form.pep_relation_relationship' => 'required',
+        ])
+        ->assertHasNoErrors(['form.pep_relation_ends_on'])
+        ->set('form.has_pep_relationship', false)
+        ->assertDontSee('Identificación del PEP');
+
+    $linkage = providerInStatus(ProviderVersionStatus::Draft);
+    $page = Livewire::actingAs(userWith(['commercial-providers-read', 'commercial-providers-update']))
+        ->test('shopping::pages.commercial-provider-show', ['linkage' => $linkage])
+        ->set('relativeForm.document_type', '')
+        ->set('relativeForm.name', 'Laura Martínez')->set('relativeForm.relationship', 'Hermano(a)')
+        ->call('addRelative')
+        ->assertHasErrors(['relativeForm.document_type' => 'required', 'relativeForm.identification' => 'required'])
+        ->set('relativeForm.document_type', 'CC')->set('relativeForm.identification', '1065123456')
+        ->call('addRelative')->assertHasNoErrors();
+
+    expect($linkage->provider->versions()->first()->pepRelatives()->firstOrFail()->only(['identification', 'name', 'relationship']))
+        ->toBe(['identification' => '1065123456', 'name' => 'Laura Martínez', 'relationship' => 'Hermano(a)']);
 });

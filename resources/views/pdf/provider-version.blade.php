@@ -24,6 +24,7 @@
         .title td { border: none; }
         .section { background: #1f4e79; color: #fff; font-weight: bold; padding: 3px 4px; margin-top: 6px; }
         .label { width: 22%; background: #f4f6f9; font-weight: bold; }
+        .subsection { font-weight: bold; margin: 4px 0 2px; }
         .muted { color: #666; }
         .small { font-size: 7.5pt; }
     </style>
@@ -82,7 +83,7 @@
         @else
             <tr>
                 <td class="label">País de constitución</td><td>{{ $version->country?->name }}</td>
-                <td class="label">Tipo de empresa</td><td>{{ $version->company_type?->label() }}</td>
+                <td class="label">Tipo de empresa</td><td>{{ $version->company_type }}</td>
             </tr>
             <tr>
                 <td class="label">Régimen tributario</td><td>{{ $version->tax_regime }}</td>
@@ -142,7 +143,7 @@
             @endunless
             <tr>
                 <td class="label">Operaciones en moneda extranjera</td><td>{{ $yesNo($version->foreign_currency_operations) }} {{ $version->foreign_currency_detail }}</td>
-                <td class="label">{{ $natural ? 'Cuentas en moneda extranjera' : '' }}</td><td>{{ $natural ? $yesNo($version->has_foreign_accounts) : '' }}</td>
+                <td class="label">Cuentas en moneda extranjera</td><td>{{ $yesNo($version->has_foreign_accounts) }}</td>
             </tr>
         </table>
     @else
@@ -154,57 +155,75 @@
         <table>
             <tr>
                 <td class="label">¿Administra recursos públicos?</td><td>{{ $yesNo($version->manages_public_resources) }}</td>
-                <td class="label">¿Es PEP?</td><td>{{ $yesNo($version->declares_pep) }} {{ $version->public_office }}</td>
+                <td class="label">¿Es PEP?</td><td>{{ $yesNo($version->declares_pep) }}</td>
             </tr>
             <tr>
-                <td class="label">Inicio / fin del cargo</td><td>{{ $date($version->pep_starts_on) }} {{ $version->declares_pep ? '- '.($date($version->pep_ends_on) ?: 'Vigente') : '' }}</td>
-                <td class="label">¿Tiene relación con PEP?</td><td>{{ $yesNo($version->has_pep_relationship) }}</td>
+                <td class="label">Cargo público</td><td>{{ $version->public_office }}</td>
+                <td class="label">Inicio / fin del cargo</td><td>{{ $date($version->pep_starts_on) }} {{ $version->hasPublicOffice() ? '- '.($date($version->pep_ends_on) ?: 'Vigente') : '' }}</td>
+            </tr>
+            <tr>
+                <td class="label">¿Tiene relación con PEP?</td><td colspan="3">{{ $yesNo($version->has_pep_relationship) }}</td>
             </tr>
         </table>
+        {{-- Como el formato: grupo básico familiar PEP y, aparte, la persona PEP con quien tiene relación. --}}
+        <p class="subsection">Grupo básico familiar como PEP (padres, esposo/esposa, suegros, hijos, yerno/nuera, abuelos, hermanos, cuñados y nietos)</p>
         <table>
-            <tr><th>Documento</th><th>Nombres y apellidos</th><th>Parentesco</th><th>Es PEP</th><th>Cargo</th><th>Fin del cargo</th></tr>
+            <tr><th>Tipo de documento</th><th>Número de documento</th><th>Nombres y apellidos</th><th>Parentesco</th></tr>
             @forelse ($version->pepRelatives as $relative)
                 <tr>
-                    <td>{{ $relative->document_type?->value }} {{ $relative->identification }}</td><td>{{ $relative->name }}</td>
-                    <td>{{ $relative->relationship }}</td><td>{{ $yesNo($relative->is_pep) }}</td><td>{{ $relative->public_office }}</td>
-                    <td>{{ $relative->is_pep ? ($date($relative->pep_ends_on) ?: 'Vigente') : '' }}</td>
+                    <td>{{ $relative->document_type?->label() }}</td><td>{{ $relative->identification }}</td>
+                    <td>{{ $relative->name }}</td><td>{{ $relative->relationship }}</td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="muted">Sin registros</td></tr>
+                <tr><td colspan="4" class="muted">Sin registros</td></tr>
             @endforelse
         </table>
+        @if ($version->has_pep_relationship)
+            <p class="subsection">Relación con PEP</p>
+            <table>
+                <tr>
+                    <td class="label">Nombre del PEP</td><td>{{ $version->pep_relation_name }}</td>
+                    <td class="label">Identificación del PEP</td><td>{{ $version->pep_relation_identification }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Cargo del PEP</td><td>{{ $version->pep_relation_office }}</td>
+                    <td class="label">Relación</td><td>{{ $version->pep_relation_relationship }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Inicio en el cargo PEP</td><td>{{ $date($version->pep_relation_starts_on) }}</td>
+                    <td class="label">Fin del cargo PEP</td><td>{{ $date($version->pep_relation_ends_on) ?: 'Vigente' }}</td>
+                </tr>
+            </table>
+        @endif
     @else
         <p class="muted">{{ $reserved }} (Ley 1581 de 2012).</p>
     @endif
 
     <div class="section">4. Contactos</div>
     <table>
-        <tr><th>Cargo</th><th>Nombre del funcionario</th><th>Teléfono / celular</th><th>Correo electrónico</th></tr>
+        <tr><th>Contacto</th><th>Nombre del funcionario</th><th>Cargo</th><th>Teléfono / celular</th><th>Correo electrónico</th></tr>
         @foreach (\App\Enums\ProviderContactRole::cases() as $role)
             @php $contact = $version->contacts->firstWhere('role', $role); @endphp
-            <tr><td>{{ $role->label() }}</td><td>{{ $contact?->name ?? 'NO APLICA' }}</td><td>{{ $contact?->phone }}</td><td>{{ $contact?->email }}</td></tr>
+            <tr><td>{{ $role->label() }}</td><td>{{ $contact?->name ?? 'NO APLICA' }}</td><td>{{ $contact?->job_title }}</td><td>{{ $contact?->phone }}</td><td>{{ $contact?->email }}</td></tr>
         @endforeach
-        <tr><td class="label">Despacho de pedidos</td><td colspan="3">{{ $version->dispatch_schedule }}</td></tr>
+        <tr><td class="label">Despacho de pedidos</td><td colspan="4">{{ $version->dispatch_schedule }}</td></tr>
     </table>
 
     <div class="section">5. Declaraciones y autorizaciones</div>
+    {{-- Texto completo de cada declaración, como en el formato físico. --}}
     <table>
-        <tr>
-            <td>{{ $yesNo($version->accepts_truthfulness) }} · Declaración de veracidad</td>
-            <td>{{ $yesNo($version->accepts_data_processing) }} · Tratamiento de datos personales</td>
-            <td>{{ $yesNo($version->accepts_information_received) }} · Información recibida por COODESCOR</td>
-        </tr>
-        <tr>
-            <td>{{ $yesNo($version->accepts_funds_origin) }} · Origen de fondos</td>
-            <td>{{ $yesNo($version->accepts_risk_bureau) }} · Consulta en centrales de riesgo</td>
-            <td>{{ $natural ? $yesNo($version->accepts_electronic_means).' · Mecanismos electrónicos (Ley 527)' : '' }}</td>
-        </tr>
+        @foreach (\App\Support\ProviderDeclarations::for($version->person_type) as $field => $declaration)
+            <tr>
+                <td class="label">{{ $yesNo($version->{$field}) }}</td>
+                <td><strong>{{ $declaration['label'] }}.</strong> {{ $declaration['text'] }}</td>
+            </tr>
+        @endforeach
     </table>
 
     <div class="section">Documentos anexos</div>
     <table>
         @forelse ($version->documents as $document)
-            <tr><td>{{ $document->type->label() }}</td><td>{{ $document->original_name }}</td><td>{{ $date($document->issued_on) }}</td></tr>
+            <tr><td>{{ $document->type }}</td><td>{{ $document->original_name }}</td><td>{{ $date($document->issued_on) }}</td></tr>
         @empty
             <tr><td class="muted">Sin anexos</td></tr>
         @endforelse
@@ -217,32 +236,54 @@
             <td class="label">Tipo de proveedor</td><td>{{ $version->provider->linkages->map(fn ($linkage) => $linkage->scope->label())->join(', ') }}</td>
         </tr>
     </table>
+    @php
+        // Firma: nombre, cargo (guardado al firmar) y fecha.
+        $sign = fn ($user, $position, $at) => collect([$user?->fullName(), $position, $date($at)])->filter()->map(fn ($value) => e($value))->join('<br>');
+    @endphp
     <table>
-        <tr><th>Verificación de la información</th><th>Oficial de cumplimiento</th><th>Aprobación de vinculación / actualización</th></tr>
+        <tr>
+            <th>Verificación de la información</th>
+            <th>Oficial de cumplimiento</th>
+            <th>Aprobación del director del proceso</th>
+            <th>Gerencia (proveedor PEP)</th>
+        </tr>
         <tr>
             <td>
-                {{ $version->verifier?->fullName() }}<br>{{ $date($version->verified_at) }}<br>
+                {!! $sign($version->verifier, $version->verified_position, $version->verified_at) !!}<br>
                 <span class="small">{{ $version->verification_observations }}</span>
             </td>
             <td>
-                @if ($version->is_pep)
-                    {{ $version->complianceOfficer?->fullName() }}<br>{{ $date($version->compliance_at) }}<br>
+                @if ($version->compliance_at)
+                    {!! $sign($version->complianceOfficer, $version->compliance_position, $version->compliance_at) !!}<br>
                     <span class="small">{{ $version->compliance_observations }}</span>
                 @else
-                    <span class="muted">No aplica</span>
+                    <span class="muted">{{ $version->is_pep ? 'Pendiente' : 'Sin observaciones' }}</span>
                 @endif
             </td>
             <td>
                 @foreach ($version->approvals as $approval)
-                    {{ $approval->scope->label() }}: {{ $approval->user?->fullName() }} · {{ $date($approval->approved_at) }}<br>
+                    <strong>{{ $approval->scope->label() }}:</strong><br>
+                    {!! $sign($approval->user, $approval->user_position, $approval->approved_at) !!}<br>
                     @if ($approval->observations)<span class="small">{{ $approval->observations }}</span><br>@endif
                 @endforeach
+            </td>
+            <td>
+                @if (! $version->is_pep)
+                    <span class="muted">No aplica</span>
+                @elseif ($version->hasManagementApproval())
+                    {{ $version->management_in_system ? 'Aprobado en el sistema' : 'Firma física registrada' }}<br>
+                    {!! $sign($version->managementSigner, $version->management_position, $version->management_signed_on) !!}<br>
+                    <span class="small">{{ $version->management_observations }}</span>
+                @else
+                    <span class="muted">Firma:</span><br><br><br>
+                @endif
             </td>
         </tr>
     </table>
     <p class="small muted">
-        La Dirección Comercial / Coordinación de Compras aprueba los proveedores comerciales y la Dirección Administrativa los administrativos.
-        Los proveedores PEP los aprueba la Gerencia, previa verificación del oficial de cumplimiento.
+        La Dirección Comercial aprueba la vinculación de proveedores comerciales. La Dirección Administrativa aprueba la vinculación
+        de proveedores administrativos. Si el proveedor es considerado PEP (Persona políticamente expuesta) será la Gerencia quien
+        apruebe la vinculación previa verificación del oficial de cumplimiento.
     </p>
 </body>
 </html>

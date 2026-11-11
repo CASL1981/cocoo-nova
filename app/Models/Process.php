@@ -110,6 +110,22 @@ final class Process extends Model implements HasToggleableStatus
         return $this->substitutions()->activeOn()->where('substitute_id', $user->id)->exists();
     }
 
+    /**
+     * Nombres de quienes pueden aprobar hoy en nombre del proceso: el director titular y los
+     * reemplazos vigentes. Vacío significa que nadie puede firmar hasta configurarlo en Procesos.
+     *
+     * @return list<string>
+     */
+    public function approverNames(): array
+    {
+        $this->loadMissing('director');
+
+        $substitutes = $this->substitutions()->activeOn()->with('substitute')->get()
+            ->map(fn (ProcessSubstitution $substitution): ?string => $substitution->substitute?->fullName());
+
+        return array_values(collect([$this->director?->fullName()])->merge($substitutes)->filter()->unique()->all());
+    }
+
     /** Proceso activo por nombre exacto (ej. Gerencia), o null si no existe. */
     public static function named(string $name): ?self
     {
